@@ -1,6 +1,6 @@
 module SearchHelper
   def parse_search(raw_search)
-    qualifiers_regex = /(\w+(?<!\\):[^ ]+)/
+    qualifiers_regex = /([\w\-_]+(?<!\\):[^ ]+)/
     qualifiers = raw_search.scan(qualifiers_regex).flatten
     search = raw_search
     qualifiers.each do |q|
@@ -10,46 +10,65 @@ module SearchHelper
     { qualifiers: qualifiers, search: search }
   end
 
-  def qualifiers_to_sql(qualifiers)
+  def qualifiers_to_sql(qualifiers, query)
     valid_value = {
       date: /^[<>=]{0,2}\d+(?:s|m|h|d|w|mo|y)?$/,
       numeric: /^[<>=]{0,2}\d+$/
     }
 
-    clauses = qualifiers.map do |qualifier|
+    qualifiers.each do |qualifier| # rubocop:disable Metrics/BlockLength
       splat = qualifier.split ':'
       parameter = splat[0]
       value = splat[1]
 
       case parameter
       when 'score'
-        next unless value =~ valid_value[:numeric]
+        next unless value.match?(valid_value[:numeric])
+
         operator, val = numeric_value_sql value
-        ["score #{operator.present? ? operator : '='} ?", val.to_i]
+        query = query.where("score #{operator.presence || '='} ?", val.to_f)
       when 'created'
-        next unless value =~ valid_value[:date]
+        next unless value.match?(valid_value[:date])
+
         operator, val, timeframe = date_value_sql value
-        ["created_at #{operator.present? ? operator : '='} DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? #{timeframe})", val.to_i]
+        query = query.where("created_at #{operator.presence || '='} DATE_SUB(CURRENT_TIMESTAMP, " \
+                            "INTERVAL ? #{timeframe})",
+                            val.to_i)
       when 'user'
-        next unless value =~ valid_value[:numeric]
+        next unless value.match?(valid_value[:numeric])
+
         operator, val = numeric_value_sql value
-        ["user_id #{operator.present? ? operator : '='} ?", val.to_i]
-      else
-        nil
+        query = query.where("user_id #{operator.presence || '='} ?", val.to_i)
+      when 'upvotes'
+        next unless value.match?(valid_value[:numeric])
+
+        operator, val = numeric_value_sql value
+        query = query.where("upvotes #{operator.presence || '='} ?", val.to_i)
+      when 'downvotes'
+        next unless value.match?(valid_value[:numeric])
+
+        operator, val = numeric_value_sql value
+        query = query.where("downvotes #{operator.presence || '='} ?", val.to_i)
+      when 'votes'
+        next unless value.match?(valid_value[:numeric])
+
+        operator, val = numeric_value_sql value
+        query = query.where("(upvotes - downvotes) #{operator.presence || '='}", val.to_i)
+      when 'tag'
+        query = query.where(posts: { id: PostsTag.where(tag_id: Tag.where(name: value).select(:id)).select(:post_id) })
+      when '-tag'
+        query = query.where.not(posts: { id: PostsTag.where(tag_id: Tag.where(name: value).select(:id))
+                                                     .select(:post_id) })
       end
-    end.compact
+    end
 
-    sql = clauses.map do |clause|
-      ActiveRecord::Base.sanitize_sql clause
-    end.join(' AND ')
-
-    Arel.sql(sql)
+    query
   end
 
   def numeric_value_sql(value)
     operator = ''
     while ['<', '>', '='].include? value[0]
-      operator = operator + value[0]
+      operator += value[0]
       value = value[1..-1]
     end
 
@@ -62,7 +81,7 @@ module SearchHelper
     operator = ''
 
     while ['<', '>', '='].include? value[0]
-      operator = operator + value[0]
+      operator += value[0]
       value = value[1..-1]
     end
 
@@ -71,12 +90,12 @@ module SearchHelper
 
     val = ''
     while value[0] =~ /[[:digit:]]/
-      val = val + value[0]
+      val += value[0]
       value = value[1..-1]
     end
 
-    timeframe = { s: 'SECOND', m: 'MINUTE', h: 'HOUR', d: 'DAY', w: 'WEEK', mo: 'MONTH', y: 'YEAR' }[value.to_sym] || 'MONTH'
+    timeframe = { s: 'SECOND', m: 'MINUTE', h: 'HOUR', d: 'DAY', w: 'WEEK', mo: 'MONTH', y: 'YEAR' }[value.to_sym]
 
-    [operator, val, timeframe]
+    [operator, val, timeframe || 'MONTH']
   end
 end

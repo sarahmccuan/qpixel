@@ -1,5 +1,14 @@
 @import 'variables';
 
+select.form-element {
+  display: block;
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 1em;
+}
+
 .form-group-horizontal {
   display: flex;
   flex-direction: column;
@@ -39,7 +48,17 @@
   }
 }
 
+.select2 {
+  margin: 0.4em 0;
+}
+
 .select2-container {
   width: 100% !important;
-  margin: 0.4em 0;
+  z-index: 8999;
+}
+
+@for $i from 1 through 25 {
+  textarea.has-rows[rows="#{$i}"] {
+    min-height: (1.2em * $i) + 1.2em;
+  }
 }

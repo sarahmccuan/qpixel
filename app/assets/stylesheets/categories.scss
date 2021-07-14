@@ -1,0 +1,40 @@
+// Place all the styles related to the Categories controller here.
+// They will automatically be included in application.css.
+// You can use Sass (SCSS) here: http://sass-lang.com/
+
+@import './variables';
+
+.category-meta {
+  display: flex;
+  border-bottom: 1px solid $muted-graphic;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+
+  @media screen and (min-width: $screen-md) {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+  }
+}
+
+.category-header--nav {
+  overflow-x: auto;
+  white-space: nowrap;
+}
+
+.category--description {
+  color: $muted-text;
+}
+
+.update-cpt {
+  @media screen and (min-width: $screen-md) {
+    margin-top: 35px;
+  }
+}
+
+.add-cpt {
+  @media screen and (min-width: $screen-md) {
+    margin-top: 20px;
+  }
+}

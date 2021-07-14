@@ -22,6 +22,11 @@ module Qpixel
     # config.i18n.load_path += Dir[Rails.root.join('my', 'locales', '*.{rb,yml}').to_s]
     # config.i18n.default_locale = :de
 
-    config.exceptions_app = self.routes
+    config.exceptions_app = -> (env) do
+      ErrorsController.action(:error).call(env)
+    end
+
+    config.i18n.load_path += Dir[Rails.root.join('config', 'locales', 'strings', '*.yml')]
+    config.i18n.default_locale = :en
   end
 end

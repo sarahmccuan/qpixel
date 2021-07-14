@@ -55,7 +55,7 @@ Rails.application.configure do
   # config.logger = ActiveSupport::TaggedLogging.new(SyslogLogger.new)
 
   # Use a different cache store in production.
-  # config.cache_store = :mem_cache_store
+  config.cache_store = :redis_cache_store, { url: 'redis://localhost:6379/1' }
 
   # Enable serving of images, stylesheets, and JavaScripts from an asset server.
   # config.action_controller.asset_host = 'http://assets.example.com'
@@ -80,5 +80,6 @@ Rails.application.configure do
   config.active_storage.service = :s3
 
   config.action_mailer.delivery_method = :ses
-  config.action_mailer.default_url_options = { host: 'writing.codidact.com', port: 80 }
+  config.action_mailer.default_url_options = { host: 'meta.codidact.com', protocol: 'https' }
+  config.action_mailer.asset_host = 'https://meta.codidact.com'
 end

@@ -1,93 +1,137 @@
-require 'ostruct'
-require 'thwait'
-
 class DumpImport
-  def initialize(options)
-    @options = options
-    @xml_data = {}
+  def self.posts_field_map(community_id, category_id, site_domain)
+    {
+      id: :id,
+      post_type_id: :post_type_id,
+      created_at: :creation_date,
+      score: :score,
+      body: Proc.new { |row| CGI.unescapeHTML(row['body'] || '') },
+      body_markdown: Proc.new { |row| CGI.unescapeHTML(row['body'] || '') },
+      user_id: :owner_user_id,
+      last_activity: :last_activity_date,
+      title: Proc.new { |row| CGI.unescapeHTML(row['title'] || '') },
+      tags_cache: Proc.new { |row| transform_tags(row) },
+      answer_count: :answer_count,
+      parent_id: :parent_id,
+      att_source: Proc.new { |row| "https://#{site_domain}#{row['post_type_id'].to_s == '1' ? '/q/' : '/a/'}#{row['id']}" },
+      att_license_name: Proc.new { |row| determine_license(row)[0] },
+      att_license_link: Proc.new { |row| determine_license(row)[1] },
+      community_id: community_id,
+      category_id: category_id
+    }
+  end
 
-    @system_user = User.find(-1)
+  def self.users_field_map(site_domain)
+    {
+      id: :id,
+      created_at: :creation_date,
+      username: Proc.new { |row| CGI.unescapeHTML(row['display_name'] || '') },
+      website: :website_url,
+      profile: Proc.new { |row| generate_profile(row, site_domain) },
+      profile_markdown: Proc.new { |row| generate_profile(row, site_domain) },
+      se_acct_id: :account_id,
+      email: Proc.new { |row| "#{row['id']}@stack-import.localhost" }
+    }
+  end
 
-    $logger.info 'Loading XML dump data'
+  def self.transform_tags(row)
+    tags = row['tags']&.split('><')&.map { |t| t.gsub(/[<>]/, '') }
+    tags.nil? ? nil : "---\n- " + tags.join("\n- ")
+  end
 
-    directory_path = File.expand_path @options.path
-    files = Dir.glob("*.xml", base: directory_path)
-    threads = files.map { |f| "#{directory_path}/#{f}" }.map.with_index do |file, idx|
-      Thread.new do
-        basename = File.basename(file).gsub('.xml', '')
+  def self.determine_license(row)
+    date = DateTime.parse(row['creation_date'])
+    if date < Date.new(2018, 5, 2)
+      ['CC BY-SA 3.0', 'https://creativecommons.org/licenses/by-sa/3.0/']
+    else
+      ['CC BY-SA 4.0', 'https://creativecommons.org/licenses/by-sa/4.0/']
+    end
+  end
 
-        $logger.debug "Loading: #{basename} (#{idx + 1}/#{files.size})"
+  def self.generate_profile(row, site_domain)
+    profile_url = "https://#{site_domain}/u/#{row['id']}"
+    "<p>This user was automatically created as the author of content sourced from Stack Exchange.</p>" \
+    "<p>The original profile on Stack Exchange can be found here: <a href=\"#{profile_url}\">#{profile_url}</a>"
+  end
 
-        data_type = basename.underscore.to_sym
-        document = Nokogiri::XML(File.read(file))
-        rows = document.css("#{basename.downcase} row").map do |r|
-          struct = OpenStruct.new
-          r.attributes.each { |n, a| struct[n.underscore.to_sym] = a.content }
-          struct
+  # Run an XML transformation from data dump format to a format that can be loaded into MySQL.
+  # @param site_domain The domain name of the SE site that we're operating on, i.e. stackoverflow.com. No protocol. Required.
+  # @param data_type The data dump data type that we're transforming, i.e. Posts or Users. Required.
+  # @param community_id The community ID that records will be inserted into. Required if data_type is Posts.
+  # @param category_id The category ID that posts should be inserted into. Required if data_type is Posts.
+  # @param dump_path The path to the downloaded, uncompressed data dump directory.
+  def self.do_xml_transform(site_domain, data_type, options)
+    dump_path = options.path
+    community_id = options.community
+    category_id = options.category
+
+    input_file_path = File.join(dump_path, "#{data_type}.xml")
+    output_file_path = Rails.root.join('import-data', "#{data_type}_Formatted.xml")
+
+    field_map = case data_type
+                when 'Posts'
+                  DumpImport.posts_field_map(community_id, category_id, site_domain)
+                when 'Users'
+                  DumpImport.users_field_map(site_domain)
+                else
+                  raise ArgumentError, "Unsupported data type #{data_type.inspect}"
+                end
+
+    document = Nokogiri::XML(File.read(input_file_path))
+    rows = document.css("#{data_type.downcase} row").to_a
+    rows = rows.map { |r| r.attributes.map { |n, a| [n.underscore, a.content] }.to_h }
+
+    # Allow calling code to add and filter rows before we dump to file.
+    rows = block_given? ? yield(rows) : rows
+
+    progress = ProgressBar.create(title: "#{data_type} (#{rows.size})", total: rows.size, progress_mark: '█')
+
+    builder = Nokogiri::XML::Builder.new do |xml|
+      xml.resultset do
+        rows.each do |row|
+          xml.row do
+            field_map.each do |field, source|
+              if source.is_a? Symbol
+                xml.send(field, row[source.to_s])
+              elsif source.is_a? Proc
+                xml.send(field, source.call(row))
+              else
+                xml.send(field, source)
+              end
+            end
+          end
+          progress.increment
         end
-        @xml_data[data_type] = rows
-
-        $logger.debug "         #{basename}: #{rows.size}"
-      end
-    end
-    ThreadsWait.all_waits(*threads)
-
-    $logger.info 'Load done'
-  end
-
-  def method_missing(method, *args, &block)
-    if @xml_data.include? method.to_sym
-      @xml_data[method.to_sym]
-    else
-      raise NotImplementedError
-    end
-  end
-
-  def site_base_url
-    site_param = @options.site
-    non_se = {stackoverflow: 'com', superuser: 'com', serverfault: 'com', askubuntu: 'com', mathoverflow: 'net', stackapps: 'com'}
-    included = non_se.keys.map(&:to_s).select { |k| site_param.include? k }
-    if included.size > 0
-      "https://#{included[0]}.#{non_se[included[0]]}"
-    else
-      "https://#{site_param}.stackexchange.com"
-    end
-  end
-
-  def post_data(post)
-    # { answers: post_data[]?, body: string, body_markdown: string, closed_date: integer?, creation_date: integer,
-    #   down_vote_count: integer, last_activity_date: integer, owner: shallow_user, title: string?, tags: string[]?,
-    #   up_vote_count: integer, link: string }
-    post_data = { body: post.body, body_markdown: QuestionsController.renderer.render(post.body),
-                  creation_date: post.creation_date, last_activity_date: post.last_activity_date,
-                  owner: {'user_id' => post.owner_user_id}, link: "#{site_base_url}/q/#{post.id}" }
-    if post.post_type_id == '1'
-      post_data = post_data.merge(title: post.title, tags: post.tags&.split(/[<>]/)&.reject(&:empty?))
-      closed_at = post_closed_at(post)
-      unless closed_at.nil?
-        post_data[:closed_at] = closed_at
       end
     end
 
-    post_data[:up_vote_count] = votes.select { |v| v.post_id == post.id && v.vote_type_id == '2' }.size
-    post_data[:down_vote_count] = votes.select { |v| v.post_id == post.id && v.vote_type_id == '3' }.size
-
-    post_data
+    File.write(output_file_path, builder.to_xml(encoding: 'UTF-8'))
+    [rows, output_file_path]
   end
 
-  def post_closed_at(post)
-    # 10: Closed
-    # 11: Reopened
-    events = post_history.select { |ph| ['10', '11'].include?(ph.post_history_type_id) && ph.post_id == post.id }
-    sorted = events.sort_by(&:creation_date)
-    sorted.last&.post_history_type_id == '10' ? sorted.last.creation_date : nil
-  end
+  def self.generate_tags(posts, options)
+    output_file_path = Rails.root.join('import-data', 'Tags_Formatted.xml')
 
-  def tag_posts(tag)
-    posts.select { |p| p.tags.include? "<#{tag}>" }
-  end
+    unique_tags = posts.map { |p| p['tags'].present? ? p['tags'].split('><').map { |t| t.gsub(/[<>]/, '') } : [] }
+                       .flatten.uniq
+    progress = ProgressBar.create(title: "Tags (#{unique_tags.size})", total: unique_tags.size, progress_mark: '█')
 
-  def user_posts(user_id)
-    posts.select { |p| p.user_id.to_s == user_id.to_s }
+    builder = Nokogiri::XML::Builder.new do |xml|
+      xml.resultset do
+        unique_tags.each do |tag|
+          xml.row do
+            xml.community_id options.community
+            xml.tag_set_id options.tag_set
+            xml.name tag
+            xml.created_at DateTime.now.iso8601
+            xml.updated_at DateTime.now.iso8601
+          end
+          progress.increment
+        end
+      end
+    end
+
+    File.write(output_file_path, builder.to_xml(encoding: 'UTF-8'))
+    output_file_path
   end
 end

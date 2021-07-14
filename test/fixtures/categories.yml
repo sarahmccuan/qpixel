@@ -1,0 +1,48 @@
+main:
+  community: sample
+  name: Main
+  short_wiki: Main Q&A
+  display_post_types:
+    - <%= Question.post_type_id %>
+    - <%= Article.post_type_id %>
+  tag_set: main
+  license: cc_by_sa
+
+meta:
+  community: sample
+  name: Meta
+  short_wiki: Meta Q&A
+  display_post_types:
+    - <%= Question.post_type_id %>
+  tag_set: meta
+  license: cc_by_sa
+
+high_trust:
+  community: sample
+  name: High Trust
+  short_wiki: High Trust
+  display_post_types:
+    - <%= Question.post_type_id %>
+  tag_set: main
+  min_trust_level: 3
+  license: cc_by_sa
+
+admin_only:
+  community: sample
+  name: High Trust
+  short_wiki: High Trust
+  display_post_types:
+    - <%= Question.post_type_id %>
+  tag_set: main
+  min_trust_level: 6
+  min_view_trust_level: 6
+  license: cc_by_sa
+
+articles_only:
+  community: sample
+  name: Articles
+  short_wiki: Articles
+  display_post_types:
+    - <%= Article.post_type_id %>
+  tag_set: main
+  license: cc_by_sa

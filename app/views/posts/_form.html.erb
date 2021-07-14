@@ -1,0 +1,174 @@
+<%#
+  Post create/edit form covering all post types.
+  Variables:
+    post          : a Post instance to work on (either via .new or .find - doesn't matter if it has content or not)
+    submit_path   : the URL to submit the form to (must accept POST requests)
+    post_type     : a PostType instance describing the requested post type
+    category      : a Category instance, required if the post type has a category, indicating which category to post in
+    parent        : a Post instance containing the parent for this post (required if the post type has a parent)
+    inline_parent : optional, default  true: display an inline copy of the parent? (if present)
+    type_summary  : optional, default  true: display a summary of the requested post type?
+    edit_comment  : optional, default false: include a field for an edit comment?
+%>
+
+<%
+  # defaults
+  category ||= defined?(category) ? category : nil
+  parent ||= defined?(parent) ? parent : nil
+  inline_parent ||= defined?(inline_parent) ? inline_parent : true
+  type_summary ||= defined?(type_summary) ? type_summary : true
+  edit_comment ||= defined?(edit_comment) ? edit_comment : false
+%>
+
+<% content_for :head do %>
+  <%= render 'posts/markdown_script' %>
+<% end %>
+
+<%= render 'posts/image_upload' %>
+
+<%= form_for post, url: submit_path, html: { class: 'has-margin-top-4' } do |f| %>
+  <% if post.id.nil? %>
+    <%= f.hidden_field :post_type_id, value: post.post_type_id || post_type.id %>
+  <% end %>
+
+  <% if post_type.has_category? && post.id.nil? %>
+    <%= f.hidden_field :category_id, value: post.category_id || category&.id || parent&.category_id %>
+  <% end %>
+
+  <% if post_type.has_parent? && post.id.nil? %>
+    <%= f.hidden_field :parent_id, value: post.parent_id || parent&.id %>
+  <% end %>
+
+  <% if type_summary %>
+    <p>
+      <span class="has-font-size-larger">
+          <%= t('posts.unsaved_changes_confirmation') %>
+        You're writing a new <strong><%= post_type.name %></strong>
+        <% if post_type.has_category? && category.present? %>
+          in <strong><%= category.name %></strong>
+        <% end %>
+      </span><br/>
+      <span class="has-font-size-smaller has-color-tertiary-700">
+        <%= post_type.description %>
+      </span>
+    </p>
+  <% end %>
+
+  <%= render 'shared/body_field', f: f, field_name: :body_markdown, field_label: t('posts.body_label'), post: post %>
+
+  <div class="post-preview"></div>
+
+  <% unless post_type.has_parent? %>
+    <div class="form-group">
+      <%= f.label :title, t('posts.post_title_label'), class: 'form-element' %>
+      <%= f.text_field :title, class: 'form-element' %>
+    </div>
+  <% end %>
+
+  <% if post_type.has_tags? && category.present? %>
+    <div class="form-group">
+      <%= f.label :tags_cache, t('posts.tags_label'), class: 'form-element' %>
+      <% required_tags = category.required_tags.to_a %>
+      <% unless required_tags.empty? %>
+        <span class="form-caption">
+          <%= t('posts.required_tags_caption') %>
+          <% required_tags.each do |tag| %>
+            <a class="badge is-tag is-filled js-add-required-tag" href="javascript:void(0)" data-tag-id="<%= tag.id %>"
+               data-tag-name="<%= tag.name %>">
+              <%= tag.name %>
+            </a>
+          <% end %>
+        </span>
+      <% end %>
+      <%= f.select :tags_cache, options_for_select(post.tags_cache.map { |t| [t, t] }, selected: post.tags_cache),
+                   { include_blank: true }, multiple: true, class: "form-element js-tag-select",
+                   data: { tag_set: category.tag_set_id } %>
+    </div>
+  <% end %>
+
+  <% if post_type.has_category? && category.present? && post_type.has_license? && !post.id.present? %>
+    <div class="form-group">
+      <%= f.label :license_id, t('posts.licence_label'), class: 'form-element' %>
+      <span class="form-caption">
+        <% site_default = License.site_default %>
+        <% category_default = category.license %>
+        <% user_default = user_preference('default_license', community: true) %>
+        <% if site_default.present? %>
+          site default: <a href="javascript:void(0)" class="js-license-autofill" data-license-id="<%= site_default.id %>">
+            <%= site_default.name %>
+          </a>
+        <% end %>
+        <% if site_default.present? && category_default.present? %>
+          &middot;
+        <% end %>
+        <% if category_default.present? %>
+          category default: <a href="javascript:void(0)" class="js-license-autofill" data-license-id="<%= category_default.id %>">
+            <%= category_default.name %>
+          </a>
+        <% end %>
+        <% if (site_default.present? || category_default.present?) && user_default.present? %>
+          &middot;
+        <% end %>
+        <% if user_default.present? %>
+          your default: <a href="javascript:void(0)" class="js-license-autofill" data-license-name="<%= user_default %>">
+            <%= user_default %>
+          </a>
+        <% end %>
+      </span>
+      <%= f.select :license_id, options_for_select(License.enabled.default_order(category, user_default)
+                                                          .map { |l| [l.name, l.id, { 'data-title': l.description }] },
+                                                   selected: post.license_id),
+                   { include_blank: user_default == 'No default (make me choose)' },
+                   class: 'form-element js-license-select' %>
+    </div>
+  <% end %>
+
+  <% if [HelpDoc.post_type_id, PolicyDoc.post_type_id].include? post_type.id %>
+    <div class="form-group">
+      <%= f.label :help_category, t('posts.category_label'), class: 'form-element' %>
+      <span class="form-caption">
+        <%= t('posts.category_caption') %>
+      </span>
+      <%= f.text_field :help_category, class: 'form-element' %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :help_ordering, t('posts.order_label'), class: 'form-element' %>
+      <span class="form-caption">
+        <%= t('posts.order_caption') %>
+      </span>
+      <%= f.number_field :help_ordering, class: 'form-element' %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :doc_slug, t('posts.slug_label'), class: 'form-element' %>
+      <span class="form-caption"><%= t('posts.slug_caption') %></span>
+      <%= f.text_field :doc_slug, class: 'form-element' %>
+    </div>
+  <% end %>
+
+  <% if edit_comment %>
+    <hr/>
+    <div class="form-group">
+      <%= label_tag :edit_comment, t('posts.edit_comment_label'), class: 'form-element' %>
+      <%= text_field_tag :edit_comment, nil, class: 'form-element' %>
+    </div>
+  <% end %>
+
+  <div class="actions">
+    <% if post_type.has_category && category.present? %>
+      <%= f.submit "Save Post in #{category.name}", class: 'button is-filled' %>
+    <% else %>
+      <%= f.submit 'Save Post', class: 'button is-filled' %>
+    <% end %>
+    <%= link_to t('g.cancel').titlecase, cancel_redirect_path(post),
+                class: 'button is-muted is-outlined is-danger js-cancel-edit',
+                data: { question_body: t('posts.unsaved_changes_confirmation') } %>
+  </div>
+<% end %>
+
+<% if inline_parent && defined?(parent) && parent.present? %>
+  <h2><%= t('posts.responding_to')%></h2>
+
+  <%= render 'posts/expanded', post: parent  %>
+<% end %>

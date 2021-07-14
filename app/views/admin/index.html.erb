@@ -1,31 +1,129 @@
-<% content_for :title, "Admin Dashboard" %>
+<% content_for :title, t('admin.dashboard.title') %>
 
-<h1>Admin Dashboard</h1>
-<p>This page serves as a repository of links to the various tools you have access to as an administrative user. While
-  you use these, remember that the data in them is usually admin- or moderator-only, and should likely not be shared
-  with anyone outside of those teams unless you've ensured it's safe to share.</p>
-<ul>
+<%= link_to moderator_path, class: "has-font-size-small" do %>
+  Switch to Mod Tools
+<% end %>
+
+<h1><%= t('admin.dashboard.title') %></h1>
+<p><%= t('admin.dashboard.blurb') %></p>
+
+<div class="grid">
   <% if current_user.is_global_admin %>
-    <li><%= link_to 'Global Site Settings', global_settings_path %></li>
-    <li><%= link_to 'Global Tag Sets', global_tag_sets_path %></li>
-  <% end %>
-  <li><%= link_to 'Site Settings', site_settings_path %></li>
-  <li><%= link_to 'Tag Sets', tag_sets_path %></li>
-  <li><%= link_to 'Privilege Thresholds', admin_privileges_path %></li>
-  <li><%= link_to 'Error Reports', admin_error_reports_path %></li>
-  <li><%= link_to 'Edit close reasons', close_reasons_path %> (includes global)</li>
-</ul>
+    <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+      <div class="widget">
+        <div class="widget--body">
+          <i class="fas fa-globe has-color-red-700"></i> <i class="fas fa-cogs"></i>
+          <%= link_to t('admin.tools.g_site_settings'), global_settings_path, 'data-ckb-item-link' => '' %>
+        </div>
+      </div>
+    </div>
 
-<h3>Safe to Share</h3>
-<p>Although for the most part, the information available under the /admin routes is sensitive or confidential, there are
-  cases where it's beneficial to share the information. If you're going to do this, make sure it's safe to share.
-  In general terms, this means that the information you share:</p>
-<ul>
-  <li>should not make it easier to circumvent the system - if you know details of systems that are generally not very
-    well-known, it's best to keep them secret so the system can't be circumvented</li>
-  <li>should not contain private details of <em>any</em> user</li>
-  <li>should not be discourteous to anyone - talk and speculation of bans and removals is inconsiderate to a user who
-    can't respond</li>
-</ul>
-<p>Apply common sense - think of what effect this information will have before you share it. If in doubt, check it with
-  another member of your team.</p>
+    <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+      <div class="widget">
+        <div class="widget--body">
+          <i class="fas fa-globe has-color-red-700"></i> <i class="fas fa-tags"></i>
+          <%= link_to t('admin.tools.g_tag_sets'), global_tag_sets_path, 'data-ckb-item-link' => '' %>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+      <div class="widget">
+        <div class="widget--body">
+          <i class="fas fa-globe has-color-red-700"></i> <i class="fas fa-envelope"></i>
+          <%= link_to t('admin.tools.email_moderators'), moderator_email_path, 'data-ckb-item-link' => '' %>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+      <div class="widget">
+        <div class="widget--body">
+          <i class="fas fa-globe has-color-red-700"></i> <i class="fas fa-mail-bulk"></i>
+          <%= link_to t('admin.tools.post_types'), post_types_path, 'data-ckb-item-link' => '' %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+
+  <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+    <div class="widget">
+      <div class="widget--body">
+        <i class="fas fa-cogs"></i>
+        <%= link_to t('admin.tools.site_settings'), site_settings_path, 'data-ckb-item-link' => '' %>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+    <div class="widget">
+      <div class="widget--body">
+        <i class="fas fa-tags"></i>
+        <%= link_to t('admin.tools.tag_sets'), tag_sets_path, 'data-ckb-item-link' => '' %>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+    <div class="widget">
+      <div class="widget--body">
+        <i class="fas fa-sliders-h"></i>
+        <%= link_to 'Abilities', admin_privileges_path, 'data-ckb-item-link' => '' %>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+    <div class="widget">
+      <div class="widget--body">
+        <i class="fas fa-exclamation-triangle"></i>
+        <%= link_to t('admin.tools.error_reports'), admin_error_reports_path, 'data-ckb-item-link' => '' %>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+    <div class="widget">
+      <div class="widget--body">
+        <i class="fas fa-hand-paper"></i>
+        <%= link_to t('admin.tools.close_reasons'), close_reasons_path, 'data-ckb-item-link' => '' %>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+    <div class="widget">
+      <div class="widget--body">
+        <i class="fas fa-balance-scale"></i>
+        <%= link_to t('admin.tools.licenses'), licenses_path, 'data-ckb-item-link' => '' %>
+      </div>
+    </div>
+  </div>
+
+  <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+    <div class="widget">
+      <div class="widget--body">
+        <i class="fas fa-user-secret"></i>
+        <%= link_to t('admin.tools.audit_log'), audit_log_path, 'data-ckb-item-link' => '' %>
+      </div>
+    </div>
+  </div>
+  <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+    <div class="widget">
+      <div class="widget--body">
+        <i class="fas fa-folder-plus"></i>
+        <%= link_to 'Create Category', new_category_path, 'data-ckb-item-link' => '' %>
+      </div>
+    </div>
+  </div>
+  <% if current_user.is_global_admin %>
+    <div class="grid--cell is-4-lg is-6-md is-12-sm" data-ckb-list-item data-ckb-item-type="link">
+      <div class="widget">
+        <div class="widget--body">
+          <i class="fas fa-user-plus"></i>
+          <%= link_to 'New Site', new_site_path, 'data-ckb-item-link' => '' %>
+        </div>
+      </div>
+    </div>
+  <% end %>
+</div>

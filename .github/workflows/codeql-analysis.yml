@@ -1,0 +1,33 @@
+name: "CodeQL analysis"
+
+on:
+  push:
+    branches:
+      - develop  
+  pull_request:
+  schedule:
+    - cron: '0 21 * * *'
+
+jobs:
+  analyze:
+    name: Analyze JS
+    runs-on: ubuntu-latest
+   # Apply principle of least privilege to GITHUB_TOKEN 
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v2
+
+    # Initializes the CodeQL tools for scanning.
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v1
+      with:
+        languages: javascript
+    
+    # Actually perform an analysis
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v1

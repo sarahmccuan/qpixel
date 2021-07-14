@@ -2,11 +2,10 @@ $(() => {
   $(document).on('click', '.vote-button', async evt => {
     const $tgt = $(evt.target).is('button') ? $(evt.target) : $(evt.target).parents('button');
     const $post = $tgt.parents('.post');
-    const $score = $post.find('.post--votes').find('.score');
+    const $up = $post.find('.post--votes').find('.js-upvote-count');
+    const $down = $post.find('.post--votes').find('.js-downvote-count');
     const voteType = $tgt.data('vote-type');
     const voted = $tgt.hasClass('is-active');
-
-    console.log($tgt, $post, $score, voteType, voted);
 
     if (voted) {
       const voteId = $tgt.attr('data-vote-id');
@@ -17,14 +16,15 @@ $(() => {
       });
       const data = await resp.json();
       if (data.status === 'OK') {
-        $score.text(data.post_score);
+        $up.text(`+${data.upvotes}`);
+        $down.html(`&minus;${data.downvotes}`);
         $tgt.removeClass('is-active')
             .removeAttr('data-vote-id');
       }
       else {
         console.error('Vote delete failed');
         console.log(resp);
-        QPixel.createNotification('danger', `<strong>Failed:</strong> ${data.message} (${resp.status})`, $tgt);
+        QPixel.createNotification('danger', `<strong>Failed:</strong> ${data.message} (${resp.status})`);
       }
     }
     else {
@@ -36,7 +36,8 @@ $(() => {
       });
       const data = await resp.json();
       if (data.status === 'modified' || data.status === 'OK') {
-        $score.text(data.post_score);
+        $up.text(`+${data.upvotes}`);
+        $down.html(`&minus;${data.downvotes}`);
         $tgt.addClass('is-active')
             .attr('data-vote-id', data.vote_id);
 
@@ -49,7 +50,7 @@ $(() => {
       else {
         console.error('Vote create failed');
         console.log(resp);
-        QPixel.createNotification('danger', `<strong>Failed:</strong> ${data.message} (${resp.status})`, $tgt);
+        QPixel.createNotification('danger', `<strong>Failed:</strong> ${data.message} (${resp.status})`);
       }
     }
   });

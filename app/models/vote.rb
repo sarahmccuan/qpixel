@@ -2,57 +2,69 @@
 # association), and to a user.
 class Vote < ApplicationRecord
   include PostRelated
-  belongs_to :user, required: true
-  belongs_to :recv_user, class_name: 'User', required: true
+  belongs_to :user, optional: false
+  belongs_to :recv_user, class_name: 'User', optional: false
 
   after_create :apply_rep_change
-  after_create :change_post_score
+  after_create :add_counter
+  before_destroy :check_valid
   before_destroy :reverse_rep_change
-  before_destroy :restore_post_score
+
+  after_destroy :remove_counter
 
   validates :vote_type, inclusion: [1, -1]
+  validate :post_not_deleted
 
   def self.total_rep_change(col)
-    col = col.includes(:post)
-    settings = SiteSetting.where(name: ['QuestionUpVoteRep', 'QuestionDownVoteRep', 'AnswerUpVoteRep', 'AnswerDownVoteRep'])
-                   .map { |ss| [ss.name, ss.value] }.to_h
-    rep_changes = PostType.mapping.map do |k, v|
-      vote_types = {1 => 'Up', -1 => 'Down'}
-      [v, vote_types.map { |vt, readable| [vt, settings["#{k}#{readable}VoteRep"].to_i] }.to_h]
-    end.to_h
+    col = col.includes(:post, post: [:category, :post_type])
 
-    col.reduce(0) { |sum, vote| sum + rep_changes[vote.post.post_type_id][vote.vote_type] }
+    col.reduce(0) do |sum, vote|
+      sum + (CategoryPostType.rep_changes[[vote.post.category_id, vote.post.post_type_id]][vote.vote_type] || 0)
+    end
   end
 
   private
 
   def apply_rep_change
-    rep_change +1
+    rep_change(+1)
   end
 
   def reverse_rep_change
-    rep_change -1
+    rep_change(-1)
   end
 
   def rep_change(direction)
-    post_type_ids = Rails.cache.fetch :post_type_ids do
-      PostType.mapping
+    change = CategoryPostType.rep_changes[[post.category_id, post.post_type_id]][vote_type] || 0
+    recv_user.update!(reputation: recv_user.reputation + direction * change)
+  end
+
+  def post_not_deleted
+    if post.deleted?
+      errors.add(:base, 'Votes are locked on deleted posts')
     end
-    setting_names = {
-        [post_type_ids['Question'], 1] => 'QuestionUpVoteRep',
-        [post_type_ids['Question'], -1] => 'QuestionDownVoteRep',
-        [post_type_ids['Answer'], 1] => 'AnswerUpVoteRep',
-        [post_type_ids['Answer'], -1] => 'AnswerDownVoteRep'
-    }
-    rep_change = SiteSetting[setting_names[[post.post_type_id, vote_type]]] || 0
-    recv_user.update!(reputation: recv_user.reputation + direction * rep_change)
   end
 
-  def change_post_score
-    post.update!(score: post.score + vote_type)
+  def check_valid
+    throw :abort unless valid?
   end
 
-  def restore_post_score
-    post.update!(score: post.score - vote_type)
+  def add_counter
+    case vote_type
+    when 1
+      post.update(upvote_count: post.upvote_count + 1)
+    when -1
+      post.update(downvote_count: post.downvote_count + 1)
+    end
+    post.recalc_score
+  end
+
+  def remove_counter
+    case vote_type
+    when 1
+      post.update(upvote_count: [post.upvote_count - 1, 0].max)
+    when -1
+      post.update(downvote_count: [post.downvote_count - 1, 0].max)
+    end
+    post.recalc_score
   end
 end

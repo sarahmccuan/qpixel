@@ -1,0 +1,33 @@
+<% content_for :title, "Tags for #{@category.name}" %>
+
+<h1>Tags used in <%= @category.name %></h1>
+
+<%= form_tag category_tags_path(@category), method: :get, class: 'form-inline' do %>
+  <div class="form-group-horizontal">
+    <div class="form-group">
+      <%= label_tag :q, 'Search', class: 'form-element' %>
+      <%= text_field_tag :q, params[:q], class: 'form-element' %>
+    </div>
+    <div class="actions has-padding-bottom-1">
+      <button type="submit" class="button is-filled is-medium"><i class="fas fa-search"></i><span class="sr-only">Search</span></button>
+    </div>
+  </div>
+<% end %>
+
+<% unless params[:q].present? %>
+  <div class="category-meta">
+    <h3><%= pluralize(@count, 'tag') %></h3>
+    <div class="button-list is-gutterless has-margin-2">
+      <%= link_to 'Usage', category_tags_path(@category),
+                  class: "button is-muted is-outlined #{request.query_parameters.size == 0 ? 'is-active' : ''}" %>
+      <%= link_to 'Hierarchy', query_url(hierarchical: '1'),
+                  class: "button is-muted is-outlined #{params[:hierarchical].present? ? 'is-active' : ''}" %>
+      <%= link_to 'Missing Excerpt', query_url(no_excerpt: '1'),
+                  class: "button is-muted is-outlined #{params[:no_excerpt].present? ? 'is-active' : ''}" %>
+    </div>
+  </div>
+<% end %>
+
+<%= render 'list' %>
+
+<%= will_paginate @tags, renderer: BootstrapPagination::Rails %>

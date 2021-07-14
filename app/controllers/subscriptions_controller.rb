@@ -1,5 +1,6 @@
 class SubscriptionsController < ApplicationController
   before_action :authenticate_user!
+  before_action :stop_the_awful_troll
   helper_method :phrase_for
 
   def new
@@ -11,9 +12,9 @@ class SubscriptionsController < ApplicationController
     @subscription = Subscription.new sub_params.merge(user: current_user)
     if @subscription.save
       flash[:success] = 'Your subscription was saved successfully.'
-      redirect_to params[:return_to].present? ? params[:return_to] : root_path
+      redirect_to params[:return_to].presence || root_path
     else
-      render :error, status: 500
+      render :error, status: :internal_server_error
     end
   end
 
@@ -27,10 +28,11 @@ class SubscriptionsController < ApplicationController
       if @subscription.update(enabled: params[:enabled] || false)
         render json: { status: 'success', subscription: @subscription }
       else
-        render json: { status: 'failed' }, status: 500
+        render json: { status: 'failed' }, status: :internal_server_error
       end
     else
-      render json: { status: 'failed', message: 'You do not have permission to update this subscription.' }, status: 403
+      render json: { status: 'failed', message: 'You do not have permission to update this subscription.' },
+             status: :forbidden
     end
   end
 
@@ -40,10 +42,11 @@ class SubscriptionsController < ApplicationController
       if @subscription.destroy
         render json: { status: 'success' }
       else
-        render json: { status: 'failed' }, status: 500
+        render json: { status: 'failed' }, status: :internal_server_error
       end
     else
-      render json: { status: 'failed', message: 'You do not have permission to remove this subscription.' }, status: 403
+      render json: { status: 'failed', message: 'You do not have permission to remove this subscription.' },
+             status: :forbidden
     end
   end
 
@@ -59,6 +62,10 @@ class SubscriptionsController < ApplicationController
       "new questions by the user '#{User.find_by(id: qualifier || params[:qualifier])&.username}'"
     when 'interesting'
       'new questions classed as interesting'
+    when 'category'
+      "new questions in the category '#{Category.find_by(id: qualifier || params[:qualifier])&.name}'"
+    when 'moderators'
+      'announcements and newsletters for moderators'
     else
       'nothing, apparently. How did you get here, again?'
     end

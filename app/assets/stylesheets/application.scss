@@ -16,20 +16,16 @@
 
 @import 'variables';
 
-body {
-  font-family: $font-stack-plain !important;
-}
-
 h1, h2, h3, h4, h5, h6 {
-  font-family: $font-stack-display !important;
+  font-family: $font-stack-display;
 }
 
-h1 {
+.post h1 {
   font-size: 1.7em;
 }
 
 .deleted-content {
-  background: lighten($danger, 45%);
+  background: lighten($danger, 25%);
 }
 
 @media all and (min-width: 32rem) {
@@ -42,17 +38,8 @@ img {
   max-width: 100%;
 }
 
-details {
-  summary {
-    font-weight: bold;
-  }
-
-  border-top: 1px solid $muted-graphic;
-  padding: 0.5em;
-
-  &:last-of-type {
-    border-bottom: 1px solid $muted-graphic;
-  }
+a {
+  overflow-wrap: break-word;
 }
 
 a.header--site-name {
@@ -71,7 +58,12 @@ a.header--site-name {
 }
 
 .notice a {
-  word-break: break-all;
+  word-break: break-word;
+}
+
+.notice.is-filled a {
+  color: white !important;
+  font-weight: bold !important;
 }
 
 .item-list--item {
@@ -81,70 +73,206 @@ a.header--site-name {
   .item-list--number-value {
     width: 80px !important;
     margin: 0 !important;
-  }
-}
+    align-self: stretch;
+    justify-content: flex-start;
 
-.badge.is-muted:not(.is-tag) {
-  background-color: #f2f2f2 !important;
-  color: #666 !important;
-  font-weight: 600;
-}
-
-.pagination {
-  display: flex;
-  margin: 0;
-  padding: 1em;
-  flex-wrap: wrap;
-
-  li {
-    display: inline-block;
-    padding: 0.25em 0.5em;
-    margin: 0.25em;
-    font-size: 0.9em;
-    border: 1px solid #ddd;
-    border-radius: 5px;
-    box-shadow: 2px 3px 2px -1px #ddd;
-    min-width: 1.5rem;
-    text-align: center;
-    cursor: pointer;
-    color: #333;
-    font-weight: 400;
-    
-    a {
-      color: inherit;
-      font-weight: 500;
-      margin: -0.25em -0.5em;
-      border-radius: 5px;
-      padding: 0.25em 0.5em;
-      display: block;
-      &:hover {
-        background-color: #fafafa;
-      }
-    }
-
-    &.active {
-      background-color: #666;
-      box-shadow: none;
-      border-color: #222;
-      color: #fff;
-      font-weight: 600;
-    }
-
-    &.disabled {
-      box-shadow: none;
-      pointer-events: none;
+    .meter {
+      flex-shrink: 0;
+      margin-top: 1.5rem;
     }
   }
 }
+
+/* Copied from Co-Design for compatibility purposes */
+ul.pagination li.active {
+  border-color:#293338;
+  background-color:#3f4e56;
+  box-shadow:2px 3px 2px -2px #344147;
+  color:#fff;
+  font-weight:600
+}
+
+ul.pagination li.active a:hover {
+  background-color:transparent
+}
+
+ul.pagination li.disabled {
+  box-shadow:none
+}
+/* *** */
 
 .notice__dev-mode {
   font-size: 14px;
 }
 
 header {
-  font-family: $font-stack-display;
+  &.header {
+    z-index: 5;
+    position: relative;
+    box-shadow: 0 3px 3px 0 rgba(0, 0, 0, 0.2);
+  }
 }
 
 .notice a.has-font-size-larger {
   font-size: 19px;
+}
+
+img.codidact-logo {
+  height: 32px;
+}
+
+hr {
+  border: 0;
+  border-top: 1px solid $muted-graphic;
+  margin: 1.5em 0;
+}
+
+.modal {
+  position: fixed !important;
+  z-index: 8998;
+}
+
+.category-header--tabs-container {
+  overflow-x: auto;
+
+  @media screen and (min-width: $screen-md) {
+    overflow-x: unset;
+  }
+}
+
+.footnote-ref a::before {
+  content: '[';
+}
+
+div.post-preview .footnote-ref a::before {
+  content: '';
+}
+
+.footnote-ref a::after {
+  content: ']';
+}
+
+div.post-preview .footnote-ref a::after {
+  content: '';
+}
+
+.footnotes-sep + .footnotes {
+  border-top: 0;
+}
+
+.footnotes {
+  border-top: 1px solid $muted-graphic;
+  font-size: 0.9em;
+}
+
+
+.dashboard-full-center {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  img {
+    height: 1.25em;
+  }
+}
+
+.inbox {
+  max-width: 400px;
+}
+
+.inbox--container {
+  max-height: 600px;
+  overflow-y: scroll;
+}
+
+.header--container {
+  align-items: center !important;
+}
+
+img {
+  align-self: flex-start;
+}
+
+.droppanel {
+  z-index: 3;
+}
+
+.widget .widget--body + .widget--header {
+  border-top: 1px solid #d0d9dd;
+}
+.widget.is-tertiary .widget--body + .widget--header {
+  border-top: 1px solid #9daeb7;
+}
+
+pre {
+  background: #f0f0f0;
+  border: 0;
+}
+
+pre .hljs {
+  padding: 0;
+  background: inherit;
+  overflow-x: unset !important;
+}
+
+.audit-log--body {
+  white-space: pre-wrap;
+  vertical-align: text-top;
+}
+
+table {
+  border-collapse: collapse;
+  padding: 4px;
+  max-width: 100%
+}
+
+table.is-full-width {
+  width: 100%
+}
+
+table th {
+  border-bottom: 3px solid #ccc;
+  padding: 6px 10px;
+  font-weight: 600;
+  text-align: left
+}
+
+table td {
+  border-bottom: 1px solid #ccc;
+  padding: 6px 10px;
+  text-align: left
+}
+
+table th:not(:last-child), table td:not(:last-child) {
+  border-right: 1px solid #ccc
+}
+
+table.is-compact th, table.is-compact td {
+  padding: 2px 6px
+}
+
+table.is-striped tr:nth-of-type(2n+1) td {
+  background-color: #f6f6f6
+}
+
+table.is-with-hover tr:hover td {
+  background-color: #eee
+}
+
+/* The default header size (2.5rem) is too huge for small headers. */
+.header.is-small .header--brand .header--site-name {
+  font-size: 2rem;
+}
+
+.notice {
+  z-index: 9999;
+}
+
+/* Fix header images being stretched - https://meta.codidact.com/posts/278377 */
+img.header--item-image {
+  object-fit: contain;
+}
+
+.widget--header-link {
+  margin: 0 0 0 0.5em;
 }

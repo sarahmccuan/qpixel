@@ -1,5 +1,3 @@
-email_config = YAML.load_file("#{Rails.root}/config/email.yml")[Rails.env]
-
 Rails.application.configure do
   # Settings specified here will take precedence over those in config/application.rb.
 
@@ -12,13 +10,13 @@ Rails.application.configure do
   config.eager_load = false
 
   # Show full error reports and disable caching.
-  config.consider_all_requests_local       = true
+  config.consider_all_requests_local       = false
   config.action_controller.perform_caching = false
 
   # Don't care if the mailer can't send.
   config.action_mailer.raise_delivery_errors = false
-  config.action_mailer.delivery_method = email_config['delivery_method'].to_sym
-  config.action_mailer.smtp_settings = email_config['smtp_settings'].map { |k, v| [k, k == :login ? v.to_sym : v] }.to_h
+  config.action_mailer.delivery_method = :ses
+  config.action_mailer.asset_host = 'https://meta.codidact.com'
 
   # Print deprecation notices to the Rails logger.
   config.active_support.deprecation = :log
@@ -43,12 +41,20 @@ Rails.application.configure do
   # Raises error for missing translations
   # config.action_view.raise_on_missing_translations = true
 
-  # Configure web console
-  config.web_console.whitelisted_ips = "82.69.87.121"
-  config.web_console.whiny_requests  = false
-
   config.action_mailer.delivery_method = :ses
-  config.action_mailer.default_url_options = { host: 'writing.codidact.com', port: 80 }
+  config.action_mailer.default_url_options = { host: 'meta.codidact.com', protocol: 'https' }
 
   config.active_storage.service = :s3
+
+  # Ensure docker ip added to allowed, given that we are in container
+  if File.file?('/.dockerenv') == true
+    host_ip = `/sbin/ip route|awk '/default/ { print $3 }'`.strip
+    config.web_console.whitelisted_ips << host_ip
+
+    # ==> Configuration for :confirmable
+    # A period that the user is allowed to access the website even without
+    # confirming their account.
+    days = ENV['CONFIRMABLE_ALLOWED_ACCESS_DAYS'] || '0'
+    config.allow_unconfirmed_access_for = (days.to_i).days
+  end
 end

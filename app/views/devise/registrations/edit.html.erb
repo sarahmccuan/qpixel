@@ -1,19 +1,10 @@
-<div class="tabs">
-  <%= link_to user_path(current_user), class: "tabs--item" do %>
-    <i class="fas fa-user"></i> Profile
-  <% end %>
-  <%= link_to edit_user_registration_path, class: "tabs--item is-active" do %>
-    Account
-  <% end %>
-  <%= link_to edit_user_profile_path, class: "tabs--item" do %>
-    Edit
-  <% end %>
-  <%= link_to subscriptions_path, class: "tabs--item" do %>
-    Subscriptions
-  <% end %>
-</div>
+<%= render 'users/tabs', user: current_user %>
 
 <h1>Edit Account Settings</h1>
+
+<%= link_to two_factor_status_path, class: 'button is-outlined' do %>
+  Two-factor authentication &raquo;
+<% end %>
 
 <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put }) do |f| %>
   <%= render "devise/shared/error_messages", resource: resource %>
@@ -41,7 +32,6 @@
       <% end %>
     </div>
     <%= f.password_field :password, class: 'form-element', autocomplete: "new-password" %>
-    
   </div>
 
   <div class="form-group">
@@ -52,7 +42,7 @@
   <div class="form-group">
     <%= f.label :current_password, class: "form-element" %>
     <div class="form-caption">We need your current password to confirm your changes.</div>
-    <%= f.password_field :current_password, class: 'form-element', autocomplete: "current-password" %>
+    <%= f.password_field :current_password, class: 'form-element', autocomplete: "current-password", required: true %>
   </div>
 
   <%= f.submit "Update", class: 'button is-filled is-very-large' %>

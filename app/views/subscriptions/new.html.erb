@@ -1,7 +1,7 @@
 <h1>New Questions Subscription</h1>
 <p>
   You're subscribing via email to <strong><%= @phrasing %></strong>. Fine-tune your subscription below, then click Subscribe
-  to confirm it
+  to confirm it.
 </p>
 
 <% if @subscription.errors.any? %>
@@ -17,7 +17,7 @@
     </p>
 
     <p>If you came here from a link and have filled in the details below, this may be a bug. Please let us know on
-      <%= link_to 'Meta', new_meta_question_path %>.</p>
+      <%= link_to 'Meta', 'https://meta.codidact.com/' %>.</p>
   </div>
 <% end %>
 

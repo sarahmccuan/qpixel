@@ -12,13 +12,9 @@
   }
 }
 
-.question.post__meta {
-  background: $meta;
-}
-
 .post--container {
   max-width: 100%;
-  
+
   .grid--cell.is-flexible {
     flex-grow: 1;
     flex-shrink: 1;
@@ -50,6 +46,19 @@ h1 .badge.is-tag.is-master-tag {
   &.is-active {
     display: block;
   }
+
+  label.form-element {
+    margin: 0;
+  }
+
+  .form-caption {
+    margin: 0;
+    margin-top: 4px !important;
+
+    p {
+      margin: 0;
+    }
+  }
 }
 
 .js-close-box .widget--body {
@@ -64,4 +73,116 @@ h1 .badge.is-tag.is-master-tag {
   padding: 1em;
   border-bottom: 1px solid $muted-graphic;
   margin-bottom: 1em;
+}
+
+.post-field.widget--body {
+  margin: -1px -1px 3px -1px;
+  border-radius: 0;
+  width: calc(100% + 2px);
+
+  + .widget--footer {
+    margin-bottom: 0;
+  }
+}
+
+.post--title {
+  display: flex;
+  align-items: center;
+  flex-direction: column-reverse;
+
+  @media screen and (min-width: $screen-md) {
+    flex-direction: row;
+
+    & > .badge {
+      margin-left: 0.5em;
+      display: flex;
+      align-items: center;
+
+      & > i {
+        margin-right: 0.2em;
+      }
+    }
+  }
+}
+
+.post--tags {
+  padding: 0.2em 0;
+}
+
+.post--meta {
+  margin: 0.2em 0;
+
+  .post-meta--post, .post-meta--user {
+    padding: 0.5rem;
+    border-radius: 5px;
+    color: $muted-text;
+    margin: 0.1em 0;
+
+    @media screen and (min-width: $screen-md) {
+      margin: 0;
+    }
+  }
+
+  .post-meta--user {
+    background: #EEE;
+    align-self: flex-end;
+
+    @media screen and (min-width: $screen-md) {
+      align-self: flex-start;
+    }
+  }
+
+  .post-meta--post {
+    font-size: 0.9em;
+
+    & > * {
+      margin: 0.1em 0;
+    }
+  }
+}
+
+.post--container {
+  display: flex;
+  flex-direction: column;
+
+  @media screen and (min-width: $screen-sm) {
+    flex-direction: row;
+  }
+}
+
+.post--votes {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+
+  @media screen and (min-width: $screen-sm) {
+    flex-direction: column;
+  }
+}
+
+.post--no-votes {
+  font-size: 2em;
+  color: $muted-text;
+  font-weight: lighter;
+}
+
+.post--content {
+  flex: 1;
+  word-break: break-word;
+
+  @media screen and (min-width: $screen-sm) {
+    max-width: calc(100% - 3em);
+  }
+}
+
+.post--body p {
+  width: 100%;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 0 0 1px 0;
+}
+
+pre code.hljs {
+  padding: unset !important;
 }

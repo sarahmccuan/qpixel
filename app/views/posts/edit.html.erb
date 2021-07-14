@@ -1,8 +1,30 @@
-<% content_for :title, "Editing '#{@post.title.truncate(50)}'" %>
+<h1>
+  Edit <%= @post_type.name.underscore.humanize.titleize %>
+  <% if @category.present? %>
+    in <%= @category.name %>
+  <% end %>
+</h1>
+
+<% if @category.present? %>
+  <div class="notice is-info">
+    <p><strong>Posting Tips</strong></p>
+    <div class="has-font-size-caption">
+      <% cache [@category, @post_type, 'guidance'] do %>
+        <% guidance = @post_type.is_top_level? ?
+                        @category.asking_guidance_override :
+                        @category.answering_guidance_override %>
+        <% setting = @post_type.is_top_level? ?
+                       SiteSetting['AskingGuidance'] :
+                       SiteSetting['AnsweringGuidance'] %>
+        <%= raw(sanitize(render_markdown(guidance.present? ? guidance : setting), scrubber: scrubber)) %>
+      <% end %>
+    </div>
+  </div>
+<% end %>
 
 <% if @post.errors.any? %>
-  <div class="notice is-danger">
-    These errors prevented this post being saved:
+  <div class="notice is-danger is-filled">
+    <p>The following errors prevented your post being saved:</p>
     <ul>
       <% @post.errors.full_messages.each do |msg| %>
         <li><%= msg %></li>
@@ -11,22 +33,10 @@
   </div>
 <% end %>
 
-<h1>Edit <%= @post.policy_doc? ? 'Policy' : (@post.help_doc? ? 'Help Article' : 'Post') %></h1>
-<%= form_for @post, url: update_post_path(@post) do |f| %>
-  <div class="form-group">
-    <%= f.label :title, "Title your post:", class: "form-element" %>
-    <%= f.text_field :title, class: "form-element" %>
-  </div>
-  <div class="form-group">
-    <%= f.label :category, 'Help center category', class: "form-element" %>
-    <%= f.select :category,
-                 options_for_select(Post.where(post_type_id: [PolicyDoc.post_type_id, HelpDoc.post_type_id]).distinct.pluck(:category)
-                                        .map { |cat| [cat, cat] }),
-                 { include_blank: true }, class: 'form-control js-category-select' %>
-  </div>
-  <div class="form-group">
-    <%= f.label :body_markdown, 'Body', class: "form-element" %>
-    <%= f.text_area :body_markdown, { class: "form-element is-large post-field", rows: 15 } %>
-  </div>
-  <%= f.submit "Update", class: "button is-filled is-very-large" %>
+<%= render 'form', post: @post, post_type: @post_type, category: @category, submit_path: request.path,
+           edit_comment: true, parent: @post.parent, type_summary: false %>
+
+<% if @post.parent.present? %>
+  <h2 class="h-m-t-8">Responding to:</h2>
+  <%= render 'posts/expanded', post: @post.parent %>
 <% end %>

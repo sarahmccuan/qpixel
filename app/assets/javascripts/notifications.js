@@ -1,84 +1,125 @@
 $(() => {
+  const makeNotification = notification => {
+    const template = `<div class="js-notification widget h-m-0 h-m-b-2 ${notification.is_read ? 'read' : 'is-teal'}">
+        <div class="widget--body h-p-2">
+            <div class="h-c-tertiary-600 h-fs-caption">
+                ${notification.community_name} &middot;
+                <span class="js-notif-state">${notification.is_read ? 'read' : `<strong>unread</strong>`}</span> &middot;
+                <span data-livestamp="${notification.created_at}">${notification.created_at}</span>
+            </div>
+            <p><a href="${notification.link}" data-id="${notification.id}"
+                  class="h-fw-bold is-not-underlined ${notification.is_read ? 'read' : ''}">${notification.content}</a></p>
+            <p class="has-font-size-caption"><a href="javascript:void(0)" data-notif-id="${notification.id}" class="js-notification-toggle">
+                <i class="fas fa-${notification.is_read ? 'envelope' : 'envelope-open'}"></i>
+                mark ${notification.is_read ? 'unread' : 'read'}
+            </a></p>
+        </div>
+    </div>`;
+    return template;
+  };
+
+  const changeInboxCount = change => {
+    const counter = $('.inbox-count');
+    let count;
+    if (counter.length !== 0) {
+      count = parseInt(counter.text(), 10);
+    }
+    else {
+      count = 0;
+    }
+    count = Math.max(0, count + change);
+
+    if (count === 0 && counter.length !== 0) {
+      counter.remove();
+    }
+    else {
+      if (counter.length === 0) {
+        $(`<span class="header--alert inbox-count">${count}</span>`).prependTo($('.inbox-toggle'));
+      }
+      else {
+        counter.text(count);
+      }
+    }
+  };
+
   $('.inbox-toggle').on('click', async evt => {
     evt.preventDefault();
     const $inbox = $('.inbox');
-    $inbox.toggleClass("is-active");
-
-    const rect = $(".inbox-toggle").toggleClass("is-active")[0].getBoundingClientRect();
-    $inbox.css({
-      top: (rect.top + rect.height) + "px",
-      right: (document.body.clientWidth - rect.right) + "px"
-    });
-
     if($inbox.hasClass("is-active")) {
       const resp = await fetch(`/users/me/notifications`, {
         credentials: 'include',
         headers: { 'Accept': 'application/json' }
       });
       const data = await resp.json();
-      $inbox.html('');
+      const $inboxContainer = $inbox.find(".inbox--container");
+      $inboxContainer.html('');
   
       const unread = data.filter(n => !n.is_read);
       const read = data.filter(n => n.is_read);
   
-      if (unread.length === 0) {
-        $inbox.append(`<div class="has-padding-2 has-margin-left-2 has-margin-right-2"><em>No unread notifications</em></div>`)
-      }
       unread.forEach(notification => {
-        const item = $(`<a href="${notification.link}" data-id="${notification.id}" class="header-slide--item"><span class="header-slide--alert">unread</span>${notification.content}</a>"`);
-        $inbox.append(item);
+        const item = $(makeNotification(notification));
+        $inboxContainer.append(item);
       });
   
-      $inbox.append(`<div role="separator" class="header-slide--separator"></div>`);
+      $inboxContainer.append(`<div role="separator" class="header-slide--separator"></div>`);
       read.forEach(notification => {
-        const item = $(`<a href="${notification.link}" data-id="${notification.id}" class="header-slide--item has-font-weight-normal">${notification.content}</a>"`);
-        $inbox.append(item);
+        const item = $(makeNotification(notification));
+        $inboxContainer.append(item);
       });
   
-      $inbox.append(`<a href="/users/me/notifications" class="header-slide--item has-font-weight-normal"><em>See all your notifications &raquo;</em></a>`);
-   } else {
-      await fetch(`/notifications/read_all`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: { 'Accept': 'application/json', 'X-CSRF-Token': QPixel.csrfToken() }
-      });
-      const $inboxCount = $('.inbox-count');
-      $inboxCount.text('');
+      $inboxContainer.append(`<a href="/users/me/notifications" class="button is-muted is-small">See all your notifications &raquo;</a>`);
     }
   });
 
-  $(document).on('click', '.inbox a:not(.no-unread):not(.read)', async evt => {
-    const $tgt = $(evt.target);
-    const id = $tgt.data('id');
-    await fetch(`/notifications/${id}/read`, {
+  $('.js-read-all-notifs').on('click', async ev => {
+    ev.preventDefault();
+
+    await fetch(`/notifications/read_all`, {
       method: 'POST',
       credentials: 'include',
       headers: { 'Accept': 'application/json', 'X-CSRF-Token': QPixel.csrfToken() }
     });
-    const $inboxCount = $('.inbox-count');
-    const currentCount = parseInt($inboxCount.text(), 10);
-    $inboxCount.text(currentCount - 1);
+
+    $('.inbox-count').remove();
+
+    $('.js-notification').removeClass('is-teal').addClass('read');
+    $('.js-notif-state').text('read');
+    $('.js-notification-toggle').html(`<i class="fas fa-envelope"></i> mark unread`);
   });
 
-  const headerSlideTriggers = $("[data-trigger-header-slide]");
-
-  headerSlideTriggers.on("click", function (e) {
-    $this = $(this);
-    const headerSlide = $($this.attr("data-trigger-header-slide"));
-
-    headerSlide.toggleClass("is-active");
-    $this.toggleClass("is-active");
-
-    // Position header slide appropriately relative to
-    // trigger.
-    const rect = $this[0].getBoundingClientRect();
-    hs.css({
-      "top": (rect.top + rect.height) + "px",
-      "right": (document.body.clientWidth - rect.right) + "px"
+  $(document).on('click', '.inbox a:not(.no-unread):not(.read):not(.js-notification-toggle)', async evt => {
+    const $tgt = $(evt.target);
+    const id = $tgt.data('id');
+    const resp = await fetch(`/notifications/${id}/read`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'X-CSRF-Token': QPixel.csrfToken() }
     });
-
-    // Prevent navigation
-    e.preventDefault();
+    const data = await resp.json();
+    $tgt.parents('.js-notification')[0].outerHTML = makeNotification(data.notification);
+    changeInboxCount(-1);
   });
 
+  $(document).on('click', '.js-notification-toggle', async ev => {
+    ev.stopPropagation();
+
+    const $tgt = $(ev.target).is('a') ? $(ev.target) : $(ev.target).parents('a');
+    const id = $tgt.attr('data-notif-id');
+    const resp = await fetch(`/notifications/${id}/read`, {
+      method: 'POST',
+      credentials: 'include',
+      headers: { 'Accept': 'application/json', 'X-CSRF-Token': QPixel.csrfToken() }
+    });
+    const data = await resp.json();
+    if (data.status !== 'success') {
+      console.error('Failed to toggle notification read state. Wat?');
+      return;
+    }
+
+    $tgt.parents('.js-notification')[0].outerHTML = makeNotification(data.notification);
+
+    const change = data.notification.is_read ? -1 : +1;
+    changeInboxCount(change);
+  });
 });

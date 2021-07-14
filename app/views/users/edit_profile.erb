@@ -1,23 +1,22 @@
-<div class="tabs">
-  <%= link_to user_path(current_user), class: "tabs--item" do %>
-    <i class="fas fa-user"></i> Profile
-  <% end %>
-  <%= link_to edit_user_registration_path, class: "tabs--item" do %>
-    Account
-  <% end %>
-  <%= link_to edit_user_profile_path, class: "tabs--item is-active" do %>
-    Edit
-  <% end %>
-  <%= link_to subscriptions_path, class: "tabs--item" do %>
-    Subscriptions
-  <% end %>
-</div>
+<%= render 'tabs', user: current_user %>
 
 <h1>Edit Profile</h1>
 
+<% if defined?(@user) && @user.errors.any? %>
+  <div class="notice is-danger">
+    There were some errors while saving your profile:
+
+    <ul>
+      <% @user.errors.full_messages.each do |msg| %>
+        <li><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
 <%= form_for current_user, url: update_user_profile_path do |f| %>
   <div class="form-group has-padding-2">
-  <img alt="user avatar" class="has-float-right has-margin-2" title="Current avatar" src="<%= avatar_url(current_user, 64) %>" height="64" width="64" />
+  <img alt="user avatar" class="has-float-right has-margin-2 avatar-64" title="Current avatar" src="<%= avatar_url(current_user, 64) %>" height="64" width="64" />
     <%= f.label :avatar, class: "form-element" %>
     <div class="form-caption">
       An optional profile picture. Max file size <%= SiteSetting['MaxUploadSize'] %>.
@@ -32,11 +31,9 @@
     <%= f.text_field :username, class: 'form-element', autocomplete: 'off' %>
   </div>
 
-  <div class="form-group has-padding-2">
-    <%= f.label :profile_markdown, 'Profile' %>
-    <%= render "posts/mdhint" %>
-    <%= f.text_area :profile_markdown, class: 'form-element post-field is-large' %>
-  </div>
+  <%= render 'shared/body_field', f: f, field_name: :profile_markdown, field_label: 'Profile', post: current_user %>
+
+  <div class="post-preview"></div>
 
   <div class="form-group-horizontal">
     <div class="form-group">
@@ -55,7 +52,15 @@
   <%= f.submit 'Save', class: 'button is-very-large is-filled' %>
 <% end %>
 
-<% if current_user.se_acct_id.nil? %>
+<% unless SiteSetting['AllowContentTransfer'] %>
+  <h2>Link with Stack Exchange</h2>
+  <div class="notice is-warning">
+    You can't link a Stack Exchange account to your account on this site because there is no associated
+    Stack Exchange site from which to transfer your content.
+  </div>
+<% end %>
+
+<% if SiteSetting['AllowContentTransfer'] && current_user.se_acct_id.nil? %>
   <div class="has-padding-4">
     <h2>Link with Stack Exchange</h2>
     <p>
@@ -67,7 +72,7 @@
       <i class="fab fa-stack-exchange"></i> Authenticate
     <% end %>
   </div>
-<% elsif !current_user.transferred_content %>
+<% elsif SiteSetting['AllowContentTransfer'] && !current_user.transferred_content %>
   <div class="has-padding-4">
     <h3>Claim your Stack Exchange content</h3>
     <p>

@@ -12,33 +12,26 @@
   description: >
     The path, relative to the root of the domain, to the site's logo file. Can also be an absolute URL.
 
-- name: QuestionUpVoteRep
-  value: 5
-  value_type: integer
-  category: ReputationAndVoting
+- name: MobileLogoPath
+  value: ~
+  value_type: string
+  category: SiteDetails
   description: >
-    The reputation change to the post's author when a question is upvoted.
+    The path to a simplified, squarer version of the site logo for use on mobile or small-screen devices.
 
-- name: QuestionDownVoteRep
-  value: -2
-  value_type: integer
-  category: ReputationAndVoting
+- name: SiteCategoryHeaderDefaultColor
+  value: blue
+  value_type: string
+  category: SiteDetails
   description: >
-    The reputation change to the post's author when a question is downvoted.
+    Select a color to be used for categories that don't define a header color, and for category-neutral views. Valid are: turquoise, green, blue, darkblue, purple, gray, bluegray, yellow, orange, pink, red.
 
-- name: AnswerUpVoteRep
-  value: 10
-  value_type: integer
-  category: ReputationAndVoting
+- name: SiteHeaderIsDark
+  value: false
+  value_type: boolean
+  category: SiteDetails
   description: >
-    The reputation change to the post's author when an answer is upvoted.
-
-- name: AnswerDownVoteRep
-  value: -2
-  value_type: integer
-  category: ReputationAndVoting
-  description: >
-    The reputation change to the post's author when an answer is downvoted.
+    Whether or not the site header has a dark color. The theme can be edited in `/public/assets/community/[Community Name].css`
 
 - name: AllowSelfVotes
   value: false
@@ -48,9 +41,7 @@
     Whether or not voting for your own posts is allowed.
 
 - name: AskingGuidance
-  value: >
-    <p>Questions get better answers if they...</p><ul><li>are specific</li><li>are not mostly
-    or entirely based on opinions</li><li>are well written</li></ul></p>
+  value: $FILE site_settings/asking_guidance.html
   value_type: text
   category: HelpAndGuidance
   description: >
@@ -110,6 +101,13 @@
   description: >
     How much reputation new users initially start with.
 
+- name: FreeVotes
+  value: 5
+  value_type: integer
+  category: ReputationAndVoting
+  description: >
+    How many votes new user accounts have (actual vote count increased by reputation).
+
 - name: SEApiClientId
   value: ""
   value_type: string
@@ -136,7 +134,7 @@
   value_type: string
   category: SiteDetails
   description: >
-    The name of the license under which content here is posted.
+    The name of the license under which content here is posted when no other is specified when posting.
 
 - name: ContentLicenseLink
   value: https://creativecommons.org/licenses/by-sa/4.0/
@@ -186,9 +184,9 @@
 
 - name: JITAdvancedSearchHelp
   value: >
-    To further refine your search, you can use additional qualifiers such as `core:>1`.
-    For example, the search `score:>=2 created:<1y grammar` would return only posts mentioning "grammar" that
-    have a score >= 2 and were created less than a year ago.
+    To further refine your search, you can use additional qualifiers such as `score:>0.5`.
+    For example, the search `score:>=0.5 created:<1y grammar` would return only posts mentioning "grammar" that
+    have a score >= 0.5 and were created less than a year ago.
   value_type: text
   category: HelpAndGuidance
   description: >
@@ -200,3 +198,199 @@
   category: SiteDetails
   description: >
     Path to a file to use as the site's favicon. Must be an .ICO file.
+
+- name: AllowContentTransfer
+  value: true
+  value_type: boolean
+  category: Integrations
+  description: >
+    Enable transferring pre-imported content from Stack Exchange to the associated user's account here.
+
+- name: AnalyticsURL
+  value: ~
+  value_type: string
+  category: Integrations
+  description: >
+    Full URL to a Matomo analytics instance, with leading protocol and trailing slash.
+
+- name: AnalyticsSiteId
+  value: ~
+  value_type: string
+  category: Integrations
+  description: >
+    Site ID for this community in your Matomo analytics instance.
+
+- name: ChatLink
+  value: ~
+  value_type: string
+  category: Integrations
+  description: >
+    Link to your chat platform of choice.
+
+- name: SidebarNoticeText
+  value: ~
+  value_type: text
+  category: Display
+  description: >
+    Text to display in a notice box at the top of the sidebar. Markdown allowed.
+
+- name: MathJaxEnabled
+  value: false
+  value_type: boolean
+  category: Display
+  description: >
+    Enable MathJax on this site for math display. This will incur a small penalty in page loading times, so consider
+    whether you really need it.
+
+- name: SyntaxHighlightingEnabled
+  value: false
+  value_type: boolean
+  category: Display
+  description: >
+    Enable highlight.js syntax highlighting on this site. This incurs a small penalty in page loading times, so consider
+    whether you really need it.
+
+- name: ScoringVariable
+  value: 2
+  value_type: integer
+  category: AdvancedSettings
+  description: >
+    Variable N value to use in the scoring algorithm. DO NOT SET THIS TO ZERO, IT WILL BREAK YOUR SITE. Generally
+    best left alone unless you understand the mathematics at play.
+
+- name: SiteAdSlogan
+  value: Try our Q&A site!
+  value_type: string
+  category: SiteDetails
+  description: >
+    A slogan to be shown on the /ads/community.png page.
+
+- name: HotPostsScoreThreshold
+  value: 0.6
+  value_type: float
+  category: AdvancedSettings
+  description: >
+    The minimum score a question must have to qualify for selection for the Hot Posts sidebar and for being selected as random advertisement.
+
+- name: NewSiteMode
+  value: true
+  value_type: boolean
+  category: ReputationAndVoting
+  description: >
+    New site mode will grant some abilities more easily.
+
+- name: RL_NewUserVotes
+  value: 5
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of votes on questions, articles and answers to non-own questions new users may cast within 24h.
+
+- name: RL_Votes
+  value: 30
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of votes on questions, articles and answers to non-own questions users with the unrestricted ability may cast within 24h.
+
+- name: RL_NewUserTopLevelPosts
+  value: 3
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of questions and articles new users may post within 24h.
+
+- name: RL_TopLevelPosts
+  value: 20
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of questions and articles users with the unrestricted ability may post within 24h.
+
+- name: RL_NewUserSecondLevelPosts
+  value: 10
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of answers new users may post within 24h.
+
+- name: RL_SecondLevelPosts
+  value: 30
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of answers users with the unrestricted ability may post within 24h.
+
+- name: RL_NewUserFlags
+  value: 10
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of flags new users may raise within 24h.
+
+- name: RL_Flags
+  value: 30
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of flags users with the unrestricted ability may raise within 24h.
+
+- name: RL_NewUserSuggestedEdits
+  value: 3
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of edits new users may suggest within 24h.
+
+- name: RL_SuggestedEdits
+  value: 20
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of edits users with the unrestricted ability may suggest within 24h.
+
+- name: RL_NewUserComments
+  value: 0
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of comments new users may add on other people's posts within 24h.
+
+- name: RL_Comments
+  value: 50
+  value_type: integer
+  category: RateLimits
+  description: >
+    The amount of comments users with the unrestricted ability may add on other people's posts within 24h.
+
+- name: TableOfContentsThreshold
+  value: 5
+  value_type: integer
+  category: Display
+  description: >
+    The minimum number of child posts before the table of contents is shown. If the number of child posts is less than
+    this threshold, the TOC is not shown.
+
+- name: TableOfContentsExcerptLength
+  value: 120
+  value_type: integer
+  category: Display
+  description: >
+    The number of characters to show in the answer excerpt in the TOC. The TOC strips most formatting, so beware of large
+    values -- the TOC might become hard to read.
+
+- name: UserCardDetails
+  value: r.12sE
+  value_type: string
+  category: Display
+  description: >
+    Which details are to be shown on the user card. "." means new line, "r" reputation, "p" number of posts,
+    "1" top-level posts, "2" second-level posts (answers), "s" score of votes received (up - down),
+    "v" number of votes received, "V" number of votes cast, "E" number of edits made on posts.
+
+- name: EnableMandatoryGlobalAdminMod2FA
+  value: false
+  value_type: boolean
+  category: AdvancedSettings
+  description: >
+    Whether two-factor authentication should be enforced for all global admins and global moderators.

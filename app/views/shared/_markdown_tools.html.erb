@@ -1,0 +1,82 @@
+<div class="modal is-with-backdrop" id="markdown-link-insert">
+  <div class="modal--container">
+    <div class="modal--header">
+      <button type="button" class="button is-close-button modal--header-button" data-modal="#markdown-link-insert">
+        &times;
+      </button>
+      Link
+    </div>
+    <div class="modal--body">
+      <div class="form-group">
+        <label for="markdown-link-name" class="form-element">Link text</label>
+        <input type="text" id="markdown-link-name" class="form-element" />
+      </div>
+      <div class="form-group">
+        <label for="markdown-link-url" class="form-element">Link URL</label>
+        <input type="text" id="markdown-link-url" class="form-element" />
+      </div>
+
+      <button type="submit" class="js-markdown-insert-link button is-filled">Insert</button>
+    </div>
+  </div>
+</div>
+
+<div class="markdown-tools widget--header js-markdown-tools">
+  <div class="button-list is-gutterless">
+    <%= md_button action: 'bold', label: 'Bold', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-bold"></i>
+    <% end %>
+    <%= md_button action: 'italic', label: 'Italic', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-italic"></i>
+    <% end %>
+    <%= md_button action: 'code', label: 'Monospace font', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-code"></i>
+    <% end %>
+  </div>
+
+  <div class="button-list is-gutterless">
+    <%= md_button label: 'Link', class: 'is-icon-only', data_modal: '#markdown-link-insert' do %>
+      <i class="fas fa-fw fa-link"></i>
+    <% end %>
+    <%= md_button action: 'quote', label: 'Block quote', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-quote-left"></i>
+    <% end %>
+    <%= md_button label: 'Insert image', class: 'is-icon-only', data_modal: '#markdown-image-upload' do %>
+      <i class="fas fa-fw fa-images"></i>
+    <% end %>
+  </div>
+
+  <div class="button-list is-gutterless">
+    <a href="javascript:void(0)" class="button is-outlined is-muted is-icon-only" data-drop="#markdown-tools"
+       data-drop-self-class-toggle="is-active" aria-label="Tools" title="Tools">
+      <i class="fas fa-tools"></i>
+    </a>
+
+    <div class="droppanel" id="markdown-tools">
+      <div class="droppanel--menu has-font-size-base">
+        <%= md_list_item action: 'bullet', label: 'Bullet list' do %>
+          <i class="fas fa-fw fa-list-ul"></i> Bullet list
+        <% end %>
+        <%= md_list_item action: 'numbered', label: 'Numbered list' do %>
+          <i class="fas fa-fw fa-list-ol"></i> Numbered list
+        <% end %>
+        <%= md_list_item action: 'heading', label: 'Heading' do %>
+          <i class="fas fa-fw fa-heading"></i> Heading
+        <% end %>
+        <%= md_list_item action: 'hr', label: 'Horizontal line' do %>
+          <i class="fas fa-fw fa-level-down-alt"></i> Horizontal line
+        <% end %>
+        <%= md_list_item action: 'table', label: 'Table' do %>
+          <i class="fas fa-fw fa-table"></i> Table
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <div class="button-list is-gutterless">
+    <a href="javascript:void(0)" class="button is-muted is-outlined is-icon-only js-save-draft" aria-label="Save draft"
+       title="Save draft">
+      <i class="fas fa-save"></i>
+    </a>
+  </div>
+</div>

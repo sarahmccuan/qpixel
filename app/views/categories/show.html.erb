@@ -1,0 +1,67 @@
+<% content_for :title, @category.name %>
+
+<% if @category.short_wiki %>
+  <div class="category--description open" data-category-id="<%= @category.id %>">
+    <div class="category--collapse">
+      <% cache [@category, 'description-rendered'] do %>
+        <%= raw(sanitize(render_markdown(@category.short_wiki), scrubber: scrubber)) %>
+      <% end %>
+    </div>
+  </div>
+<% end %>
+
+<% post_count = @posts.count %>
+<div class="has-color-tertiary-500 category-meta" title="<%= post_count %>">
+  <div>
+    <%= short_number_to_human post_count, precision: 1, significant: false %>
+    <%= 'post'.pluralize(post_count) %> &middot;
+
+    <% if current_user&.is_admin %>
+      <%= link_to 'Edit Category', edit_category_path(@category) %>
+      &middot;
+    <% end %>
+
+    <%= link_to 'Subscribe',
+                new_subscription_path(type: 'category', qualifier: @category.id, return_to: request.path),
+                class: 'button is-outlined' %>
+  </div>
+
+  <div class="button-list is-gutterless has-margin-2">
+    <%= link_to 'Activity', query_url(sort: 'activity'),
+                class: "button is-muted is-outlined #{(params[:sort].nil?) && !current_page?(questions_lottery_path) ||
+                    params[:sort] == 'activity' ? 'is-active' : ''}",
+                title: 'most recent changes: new posts, edits, close/open, delete/undelete' %>
+    <%= link_to 'Age', query_url(sort: 'age'),
+                class: "button is-muted is-outlined #{params[:sort] == 'age' ? 'is-active' : ''}",
+                title: 'newest posts (ignores other activity)' %>
+    <%= link_to 'Score', query_url(sort: 'score'),
+                class: "button is-muted is-outlined #{params[:sort] == 'score' ? 'is-active' : ''}",
+                title: 'highest score first (not the same as net votes)' %>
+    <% if SiteSetting['AllowContentTransfer'] %>
+      <%= link_to 'Native', query_url(sort: 'native'),
+                  class: "button is-muted is-outlined #{params[:sort] == 'native' ? 'is-active' : ''}",
+                  title: 'exclude imported posts' %>
+    <% end %>
+    <% if @category.name == 'Q&A' %>
+      <%= link_to 'Random', query_url(sort: 'lottery'),
+                  class: "button is-muted is-outlined #{params[:sort] == 'lottery' ? 'is-active' : ''}",
+                  title: 'random set of questions, usually older ones' %>
+    <% end %>
+  </div>
+</div>
+
+<div class="item-list">
+  <% @posts.each do |post| %>
+    <%= render 'posts/type_agnostic', post: post %>
+  <% end %>
+</div>
+
+<div class="has-padding-top-4">
+  <%= will_paginate @posts, renderer: BootstrapPagination::Rails %>
+</div>
+
+<div class="has-padding-top-4">
+  <%= link_to category_feed_path(@category, format: 'rss') do %>
+    <i class="fas fa-rss"></i> Category RSS feed
+  <% end %>
+</div>
