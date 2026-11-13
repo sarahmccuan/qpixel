@@ -1,23 +1,59 @@
-# QPixel [![CircleCI Build Status](https://circleci.com/gh/ArtOfCode-/qpixel.svg?style=svg)](https://circleci.com/gh/ArtOfCode-/qpixel) [![CodeClimate maintainability report](https://codeclimate.com/github/ArtOfCode-/qpixel/badges/gpa.svg)](https://codeclimate.com/github/ArtOfCode-/qpixel) [![Test coverage](https://coveralls.io/repos/github/ArtOfCode-/qpixel/badge.svg?branch=master)](https://coveralls.io/github/ArtOfCode-/qpixel?branch=master)
-Rails Q&A software.
+<div align="center">
+  <br>
+  <h1>QPixel</h1>
+  <strong>Q&A by the community, for the community</strong>
+</div>
+<br>
+<div align="center">
 
-## Installation
-The usual sort of thing:
+  [![Pipeline status](https://github.com/codidact/qpixel/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/codidact/qpixel/actions/workflows/ci-cd.yml)
+  [![Coverage status](https://codecov.io/gh/codidact/qpixel/graph/badge.svg?token=RM60WJLP1V)](https://codecov.io/gh/codidact/qpixel)
+  [![DOI](https://zenodo.org/badge/237078806.svg)](https://zenodo.org/badge/latestdoi/237078806)
+</div>
 
- * Clone the repo and `cd` into the directory
- * Fill in `config/database.yml` with the correct values for your environment
- * Run `bundle install`
- * Run `rails db:setup` and `rails db:migrate`
- * Run `rails s`
- 
-To grant admin/moderator rights to a user, you need to manually update the user account. Run `rails c` for a console, then the following:
+Rails-based version of our core software, powering [codidact.com](https://codidact.com). Currently under active development towards MVP.
 
-```ruby
-User.find(USER_ID_HERE).update(is_admin: true, is_moderator: true)  # pick admin and/or moderator as required
-```
+## Table of Contents
+- [Features](#features)
+- [Community](#community)
+- [Contributing](#contributing)
+- [Installation](#installation)
+- [License](#license)
 
-## License
-[MIT licensed](https://github.com/ArtOfCode-/qpixel/blob/master/LICENSE)
+## Features
+
+![img/example_screenshot_codidact.jpg](img/example_screenshot_codidact.jpg)
+
+- Supports multiple communities within a single installation
+- Allows multiple categories within each community
+- And multiple post types (Q&A, Articles, ...) within each category
+- Voting on content and sorting based on a [modified score](https://meta.codidact.com/help/scoring)
+  that accounts for controversy
+- Abilities/privileges based on [activity](https://meta.codidact.com/help/abilities)
+- Content written in Markdown with live preview
+- Support for MathJax, image uploads, custom content licenses
+- High degree of [customization](https://meta.codidact.com/posts/280722/280723#answer-280723) possible
+- Open source
+
+## Community
+
+To discuss features and voice ideas, please ask a new question on [Codidact Meta](https://meta.codidact.com).
+For technical discussions about the QPixel software itself, please ask on
+[Codidact Collab](https://collab.codidact.org) instead.
 
 ## Contributing
-Contributions are welcome - please open an issue first for major changes, so that we can discuss what you're working on.
+
+Contributions are welcome - please read the [CONTRIBUTING](CONTRIBUTING.md) document before you
+start and look at the [GitHub issues](https://github.com/codidact/qpixel/issues) for things to do.
+
+## Installation
+
+For a complete installation see the [Installation guide](INSTALLATION.md).
+
+## License
+
+QPixel is [AGPL licensed](LICENSE).
+
+<br>
+
+[⬆ Back to Top](#table-of-contents)

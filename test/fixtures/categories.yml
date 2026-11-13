@@ -1,0 +1,80 @@
+main:
+  community: sample
+  name: Main
+  short_wiki: Main Q&A
+  display_post_types:
+    - <%= Question.post_type_id %>
+    - <%= Article.post_type_id %>
+  tag_set: main
+  license: cc_by_sa
+  sequence: 1
+
+meta:
+  community: sample
+  name: Meta
+  short_wiki: Meta Q&A
+  display_post_types:
+    - <%= Question.post_type_id %>
+  tag_set: meta
+  license: cc_by_sa
+  sequence: 2
+
+high_trust:
+  community: sample
+  name: High Trust
+  short_wiki: High Trust
+  display_post_types:
+    - <%= Question.post_type_id %>
+  tag_set: main
+  min_trust_level: 3
+  license: cc_by_sa
+  sequence: 3
+
+admin_only:
+  community: sample
+  name: Admin Only
+  short_wiki: Admin Only
+  display_post_types:
+    - <%= Question.post_type_id %>
+  tag_set: main
+  min_trust_level: 5
+  min_view_trust_level: 5
+  license: cc_by_sa
+  sequence: 99
+
+articles_only:
+  community: sample
+  name: Articles
+  short_wiki: Articles
+  display_post_types:
+    - <%= Article.post_type_id %>
+  tag_set: main
+  license: cc_by_sa
+
+moderator_tags:
+  community: sample
+  name: Moderator Tags
+  short_wiki: Category with a couple of moderator tags
+  tag_set: main
+  license: cc_by_sa
+  moderator_tags:
+    - feature-request
+
+homepage:
+  community: sample
+  name: Home
+  short_wiki: Home sweet home
+  display_post_types:
+    - <%= Question.post_type_id %>
+  is_homepage: true
+  tag_set: main
+  license: cc_by_sa
+
+single_post_type:
+  community: sample
+  name: Singular
+  short_wiki: Has only one top-level post type
+  display_post_types:
+    - <%= Question.post_type_id %>
+  tag_set: main
+  license: cc_by_sa

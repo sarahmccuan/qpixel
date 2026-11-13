@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+  <head>
+    <%= render 'layouts/head' %>
+  </head>
+  <body class="<%= Rails.env.development? ? 'development' : '' %>"
+        data-user-id="<%= user_signed_in? ? current_user.id : 'none' %>">
+    <%= render 'layouts/header' %>
+
+    <main class="container">
+      <div class="grid">
+        <div class="grid--cell is-12">
+          <div class="has-padding-4">
+            <%= render 'shared/notices' %>
+
+            <% if @first_visit_notice %>
+              <%= render 'notices/first_visit' %>
+            <% end %>
+
+            <%= yield %>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <%= render 'layouts/footer' %>
+
+    <%= render 'layouts/matomo' %>
+  </body>
+</html>

@@ -1,4 +1,4 @@
-require File.expand_path('../boot', __FILE__)
+require_relative 'boot'
 
 require 'rails/all'
 
@@ -12,7 +12,8 @@ module Qpixel
   class Application < Rails::Application
     # Settings in config/environments/* take precedence over those specified here.
     # Application configuration should go into files in config/initializers
-    # -- all .rb files in that directory are automatically loaded.
+    # -- all .rb files in that directory are automatically loaded after loading
+    # the framework and any gems in your application.
 
     # Set Time.zone default to the specified zone and make Active Record auto-convert to this zone.
     # Run "rake -D time" for a list of tasks for finding time zone names. Default is UTC.
@@ -22,6 +23,27 @@ module Qpixel
     # config.i18n.load_path += Dir[Rails.root.join('my', 'locales', '*.{rb,yml}').to_s]
     # config.i18n.default_locale = :de
 
-    config.exceptions_app = self.routes
+    # Initialize configuration defaults for originally generated Rails version.
+    config.load_defaults 7.0
+
+    config.autoload_paths << Rails.root.join('lib')
+
+    config.exceptions_app = -> (env) do
+      ErrorsController.action(:error).call(env)
+    end
+
+    config.i18n.load_path += Dir[Rails.root.join('config', 'locales', 'strings', '*.yml')]
+    config.i18n.default_locale = :en
+
+    config.to_prepare do
+      Devise::Mailer.helper :application
+      Devise::Mailer.helper :users
+      Devise::Mailer.layout 'devise_mailer'
+    end
+
+    console do
+      require 'console_extension'
+      include ConsoleExtension
+    end
   end
 end

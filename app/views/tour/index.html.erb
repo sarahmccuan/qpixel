@@ -1,0 +1,16 @@
+<div class="grid">
+  <div class="grid--cell mascot">
+    <img src="<%= SiteSetting['NetworkMascotLogoPath'] %>" alt="<%= SiteSetting['NetworkMascotName'] %>">
+  </div>
+  <div class="grid--cell is-flexible">
+    <div class="widget">
+      <div class="widget--body">
+        <%= raw(sanitize(render_markdown(SiteSetting['TourBeginningDescription']), scrubber: scrubber)) %>
+      </div>
+      <div class="widget--footer">
+        <a href="/tour/q" class="button is-filled">Let's go</a>
+        <a href="/" class="button">No, thanks</a>
+      </div>
+    </div>
+  </div>
+</div>

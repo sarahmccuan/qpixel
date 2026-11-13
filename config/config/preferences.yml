@@ -1,0 +1,102 @@
+# All default values must be strings.
+# Schema:
+#
+# preference_name:
+#   type: boolean | string | integer | choice
+#   description: Free-form description
+#   choice:
+#     - only
+#     - used
+#     - if
+#     - type is choice
+#   default: string default value | ~
+##  Either community, global or category should be set to true, all default to false
+#   community: true | false
+#   global: true | false
+#   category: true | false
+
+keyboard_tools:
+  type: boolean
+  description: >
+    Enable keyboard shortcuts. Press ? for a list of shortcuts.
+  default: 'true'
+  global: true
+
+autosave:
+  type: choice
+  choice:
+    - 'on'
+    - 'off'
+  description: >
+    Should autosave be enabled while composing posts?
+  default: 'on'
+  community: true
+
+default_license:
+  type: choice
+  description: >
+    Your choice of default license. This will override site and category default licensing.
+  default: ~
+  choice:
+    - name: Site or category default
+      value: ~
+    - name: CC BY-SA 4.0
+      value: CC BY-SA 4.0
+    - name: CC BY 4.0
+      value: CC BY 4.0
+    - name: CC BY-NC 4.0
+      value: CC BY-NC 4.0
+    - name: CC BY-NC-SA 4.0
+      value: CC BY-NC-SA 4.0
+    - name: CC0
+      value: CC0
+    - name: No default (make me choose)
+      value: No default (make me choose)
+  community: true
+
+favorite_tags:
+  type: string
+  description: >
+    Favorite tags will be highlighted in question list views. List tag names here, comma-separated.
+  default: ~
+  community: true
+
+display_import_labels:
+  type: boolean
+  description: >
+    Add a Stack Exchange logo marker to imported posts to show that they're imported.
+  default: 'false'
+  community: true
+
+auto_follow_comment_threads:
+  type: boolean
+  description: >
+    Automatically follow any comment thread you create or participate in.
+  default: 'true'
+  global: true
+
+sticky_header:
+  type: boolean
+  description: >
+    Make the top navigation bar sticky.
+  default: 'false'
+  global: true
+
+default_filter_name:
+  type: ~
+  default: none
+  category: true
+
+collapse_hot_posts:
+  type: boolean
+  description: >
+    Collapse the Hot Posts widget in the sidebar by default.
+  default: 'false'
+  global: true
+
+collapse_related_posts:
+  type: boolean
+  description: >
+    Collapse the Related Posts widget in the sidebar by default.
+  default: 'false'
+  global: true

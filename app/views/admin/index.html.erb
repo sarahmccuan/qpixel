@@ -1,31 +1,33 @@
-<% content_for :title, "Admin Dashboard" %>
+<% content_for :title, t('admin.dashboard.title') %>
 
-<h1>Admin Dashboard</h1>
-<p>This page serves as a repository of links to the various tools you have access to as an administrative user. While
-  you use these, remember that the data in them is usually admin- or moderator-only, and should likely not be shared
-  with anyone outside of those teams unless you've ensured it's safe to share.</p>
-<ul>
-  <% if current_user.is_global_admin %>
-    <li><%= link_to 'Global Site Settings', global_settings_path %></li>
-    <li><%= link_to 'Global Tag Sets', global_tag_sets_path %></li>
+<%= link_to moderator_path, class: "has-font-size-small" do %>
+  Switch to Moderator Tools
+<% end %>
+
+<h1><%= t('admin.dashboard.title') %></h1>
+<p><%= t('admin.dashboard.blurb') %></p>
+
+<div class="grid">
+  <% if current_user.global_admin? %>
+    <%= render 'action_card', icon: 'cogs', action: 'global_settings', label_key: 'g_site_settings', is_global: true %>
+    <%= render 'action_card', icon: 'tags', action: 'global_tag_sets', label_key: 'g_tag_sets', is_global: true %>
+    <%= render 'action_card', icon: 'mail-bulk', action: 'post_types', is_global: true %>
+    <%= render 'action_card', icon: 'folder-plus', action: 'email_all', is_global: true %>
+    <%= render 'action_card', icon: 'envelope', action: 'moderator_email', label_key: 'email_moderators', is_global: true %>
   <% end %>
-  <li><%= link_to 'Site Settings', site_settings_path %></li>
-  <li><%= link_to 'Tag Sets', tag_sets_path %></li>
-  <li><%= link_to 'Privilege Thresholds', admin_privileges_path %></li>
-  <li><%= link_to 'Error Reports', admin_error_reports_path %></li>
-  <li><%= link_to 'Edit close reasons', close_reasons_path %> (includes global)</li>
-</ul>
 
-<h3>Safe to Share</h3>
-<p>Although for the most part, the information available under the /admin routes is sensitive or confidential, there are
-  cases where it's beneficial to share the information. If you're going to do this, make sure it's safe to share.
-  In general terms, this means that the information you share:</p>
-<ul>
-  <li>should not make it easier to circumvent the system - if you know details of systems that are generally not very
-    well-known, it's best to keep them secret so the system can't be circumvented</li>
-  <li>should not contain private details of <em>any</em> user</li>
-  <li>should not be discourteous to anyone - talk and speculation of bans and removals is inconsiderate to a user who
-    can't respond</li>
-</ul>
-<p>Apply common sense - think of what effect this information will have before you share it. If in doubt, check it with
-  another member of your team.</p>
+  <%= render 'action_card', icon: 'cogs', action: 'site_settings' %>
+  <%= render 'action_card', icon: 'tags', action: 'tag_sets' %>
+  <%= render 'action_card', icon: 'folder', action: 'categories' %>
+  <%= render 'action_card', icon: 'sliders-h', action: 'admin_privileges', label_key: 'abilities' %>
+  <%= render 'action_card', icon: 'exclamation-triangle', action: 'admin_error_reports', label_key: 'error_reports' %>
+  <%= render 'action_card', icon: 'hand-paper', action: 'close_reasons' %>
+  <%= render 'action_card', icon: 'balance-scale', action: 'licenses' %>
+  <%= render 'action_card', icon: 'user-secret', action: 'audit_logs' %>
+
+  <% if current_user.global_admin? %>
+    <%= render 'action_card', icon: 'user-plus', action: 'new_site' %>
+  <% end %>
+
+  <%= render 'action_card', icon: 'user', action: 'admin_email_query' %>
+</div>

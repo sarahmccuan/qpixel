@@ -1,21 +1,16 @@
 class SearchController < ApplicationController
   def search
-    @posts = if params[:search].present?
-               search_data = helpers.parse_search(params[:search])
-               posts = (current_user&.is_moderator || current_user&.is_admin ? Post : Post.undeleted)
-                   .qa_only.where(helpers.qualifiers_to_sql(search_data[:qualifiers]))
-                   .includes(:user, user: :avatar_attachment)
-                   .paginate(page: params[:page], per_page: 25)
+    @posts, @qualifiers = helpers.search_posts(current_user, params)
 
-               if search_data[:search].present?
-                 posts.search(search_data[:search]).user_sort({term: params[:search], default: :search_score},
-                                                              {relevance: :search_score, score: :score, age: :created_at})
-               else
-                 posts.user_sort({term: params[:search], default: :score},
-                                 {score: :score, age: :created_at})
-               end
-             else
-               nil
-             end
+    @signed_out_me = @qualifiers.any? { |q| q[:param] == :user && q[:user_id].nil? }
+
+    @active_filter = helpers.active_filter
+
+    @count = begin
+      @posts&.count
+    rescue
+      @posts = nil
+      flash[:danger] = 'Your search syntax is incorrect.'
+    end
   end
 end

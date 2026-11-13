@@ -4,66 +4,243 @@
 class ApplicationController < ActionController::Base
   # Prevent CSRF attacks by raising an exception.
   # For APIs, you may want to use :null_session instead.
-  protect_from_forgery with: :exception
+  protect_from_forgery with: :exception, store: :cookie
   before_action :configure_permitted_parameters, if: :devise_controller?
   before_action :set_globals
+  before_action :enforce_signed_in, unless: :devise_controller?
+  before_action :check_if_warning_or_suspension_pending, if: [:user_signed_in?], unless: [:devise_controller?]
+  before_action :distinguish_fake_community
+  before_action :stop_the_awful_troll
+
+  # Before checking 2fa enforcing or access, store the location that the user is trying to access.
+  # In case re-authentication is necessary / the user signs in, we can direct back to this location directly.
+  before_action :store_user_location!, if: :storable_location?
+
+  before_action :enforce_2fa
+  before_action :block_write_request, if: :read_only_mode?
+
+  helper_method :top_level_post_types, :second_level_post_types
+
+  def upload
+    if ActiveStorage::Blob.service.class.name.end_with?('S3Service')
+      redirect_to helpers.upload_remote_url(params[:key]), status: 301, allow_other_host: true
+    else
+      blob = params[:key]
+      redirect_to url_for(ActiveStorage::Blob.find_by(key: blob.is_a?(String) ? blob : blob.key)),
+                  allow_other_host: true
+    end
+  end
+
+  def dashboard
+    @communities = Community.all
+    @edits = Post.unscoped do
+      SuggestedEdit.unscoped.joins(:post).where(active: true).group(Arel.sql('posts.category_id')).count
+    end
+    render layout: 'without_sidebar'
+  end
+
+  def keyboard_tools; end
 
   protected
 
   def configure_permitted_parameters
     devise_parameter_sanitizer.permit(:sign_up, keys: [:username])
-    devise_parameter_sanitizer.permit(:account_update, keys: [:username, :profile, :website, :twitter])
+    devise_parameter_sanitizer.permit(:account_update, keys: [:profile, :website, :twitter])
   end
 
-  def not_found
-    render 'errors/not_found', layout: 'errors', status: 404
+  def not_found!(**add)
+    respond_to do |format|
+      format.json do
+        render json: { status: 'failed', success: false, errors: ['not_found'] }.merge(add), status: :not_found
+      end
+      format.any do
+        render 'errors/not_found', formats: [:html], layout: 'without_sidebar', status: :not_found
+      end
+    end
+    false
   end
 
   def verify_moderator
-    if !user_signed_in? || !(current_user.is_moderator || current_user.is_admin)
-      render 'errors/not_found', layout: 'errors', status: 404
+    if !user_signed_in? || !current_user.at_least_moderator?
+      respond_to do |format|
+        format.html do
+          render 'errors/not_found', layout: 'without_sidebar', status: :not_found
+        end
+        format.json do
+          render json: { status: 'failed', success: false, errors: ['not_found'] }, status: :not_found
+        end
+      end
+
       return false
     end
     true
   end
 
   def verify_admin
-    if !user_signed_in? || !current_user.is_admin
-      render 'errors/not_found', layout: 'errors', status: 404
+    if !user_signed_in? || !current_user.admin?
+      render 'errors/not_found', layout: 'without_sidebar', status: :not_found
       return false
     end
     true
   end
 
   def verify_global_admin
-    if !user_signed_in? || !current_user.is_global_admin
-      render 'errors/not_found', layout: 'errors', status: 404
+    if !user_signed_in? || !current_user.global_admin?
+      render 'errors/not_found', layout: 'without_sidebar', status: :not_found
+      return false
+    end
+    true
+  end
+
+  def verify_global_moderator
+    if !user_signed_in? || !current_user.at_least_global_moderator?
+      render 'errors/not_found', layout: 'without_sidebar', status: :not_found
+      return false
+    end
+    true
+  end
+
+  def verify_developer
+    if !user_signed_in? || !current_user.developer?
+      render 'errors/not_found', layout: 'without_sidebar', status: :not_found
+      return false
+    end
+    true
+  end
+
+  def verify_staff
+    if !user_signed_in? || !current_user.staff?
+      render 'errors/not_found', layout: 'without_sidebar', status: :not_found
       return false
     end
     true
   end
 
   def check_your_privilege(name, post = nil, render_error = true)
-    unless current_user&.has_privilege?(name) || (current_user&.has_post_privilege?(name, post) if post)
-      @privilege = Privilege.find_by(name: name)
-      render 'errors/forbidden', layout: 'errors', privilege_name: name, status: 401 if render_error
+    unless current_user&.privilege?(name) || (current_user&.post_privilege?(name, post) if post)
+      @privilege = Ability.find_by(name: name)
+      render 'errors/forbidden', layout: 'without_sidebar', privilege_name: name, status: :forbidden if render_error
       return false
     end
     true
   end
 
+  def check_if_locked(post)
+    return if current_user.at_least_moderator?
+
+    if post.locked?
+      respond_to do |format|
+        format.html { render 'errors/locked', layout: 'without_sidebar', status: :forbidden }
+        format.json { render json: { status: 'failed', message: 'Post is locked.' }, status: :forbidden }
+      end
+    end
+  end
+
+  def top_level_post_types
+    helpers.post_type_ids(is_top_level: true)
+  end
+
+  def second_level_post_types
+    helpers.post_type_ids(is_top_level: false, has_parent: true)
+  end
+
+  [:json, :html, :xml].each do |format|
+    define_method "#{format}_request?" do
+      return false unless request.format.respond_to?("#{format}?")
+
+      request.format.send("#{format}?")
+    end
+  end
+
   private
 
-  def set_globals
-    RequestContext.clear!
+  def distinguish_fake_community
+    if RequestContext.community.is_fake
+      return redirect_to :fc_communities if request.fullpath == '/'
 
-    host_name = request.raw_host_with_port   # include port to support multiple localhost instances
-    RequestContext.community = @community = Rails.cache.fetch("#{host_name}/community", expires_in: 1.hour) do
-      Community.find_by(host: host_name)
+      unless devise_controller? || ['fake_community', 'admin', 'users', 'site_settings'].include?(controller_name)
+        not_found!
+      end
+    else
+      not_found! if ['fake_community'].include?(controller_name)
+    end
+  end
+
+  def stop_the_awful_troll
+    # There shouldn't be any trolls in the test environment... :D
+    return if Rails.env.test?
+
+    # Only stop trolls doing things, not looking at them.
+    return if request.method.upcase == 'GET'
+
+    # Trolls can't be awful without user accounts. User model is already checking for creation cases.
+    return if current_user.nil?
+
+    ip = current_user.extract_ip_from(request)
+    email_domain = current_user.email.split('@')[-1]
+
+    ip_block = BlockedItem.active.where(item_type: 'ip', value: ip)
+    mail_block = BlockedItem.active.where(item_type: 'email', value: current_user.email)
+    mail_host_block = BlockedItem.active.where(item_type: 'email_host', value: email_domain)
+    is_blocked = ip_block.or(mail_block).or(mail_host_block)
+
+    if is_blocked.any?
+      blocked_info = "ip: #{ip}\nemail: #{current_user.email}\ndomain: #{email_domain}"
+      request_info = "request: #{request.method.upcase} #{request.fullpath}"
+      params_info = params.except(*Rails.application.config.filter_parameters).permit!.to_h
+                          .map { |k, v| "  #{k}: #{v}" }.join("\n")
+      AuditLog.block_log(event_type: 'write_request_blocked', related: is_blocked.first,
+                         comment: "#{blocked_info}\n#{request_info}\n#{params_info}")
+
+      respond_to do |format|
+        format.html { render 'errors/stat', layout: 'without_sidebar', status: 418 }
+        format.json { render json: { status: 'failed', message: ApplicationRecord.useful_err_msg.sample }, status: 418 }
+      end
+    end
+  end
+
+  def set_globals
+    setup_request_context || return
+    setup_user
+
+    pull_pinned_links_and_hot_questions
+    pull_categories
+
+    if user_signed_in? && current_user.at_least_moderator?
+      @open_flags = Flag.unhandled.count
     end
 
-    Rails.logger.info "  Host #{host_name}, community #{RequestContext.community_id} (#{RequestContext.community.name})"
+    @first_visit_notice = !user_signed_in? && cookies[:dismiss_fvn] != 'true'
 
+    if current_user&.admin?
+      Rack::MiniProfiler.authorize_request
+    end
+
+    if current_user&.staff?
+      @complaints_count = Complaint.where(status: 'new').count
+    end
+  end
+
+  def setup_request_context
+    RequestContext.clear!
+
+    host_name = request.raw_host_with_port # include port to support multiple localhost instances
+    @community = Rails.cache.fetch_collection("#{host_name}/community", expires_in: 1.hour) do
+      Community.unscoped.where(host: host_name)
+    end.first
+    RequestContext.community = @community
+
+    Rails.logger.info "  Host #{host_name}, community ##{RequestContext.community_id} " \
+                      "(#{RequestContext.community&.name})"
+    if RequestContext.community.blank?
+      render status: :unprocessable_entity, plain: "No community record matching Host='#{host_name}'"
+      return false
+    end
+
+    true
+  end
+
+  def setup_user
     if current_user.nil?
       Rails.logger.info '  No user signed in'
     else
@@ -71,23 +248,209 @@ class ApplicationController < ActionController::Base
       RequestContext.user = current_user
       current_user.ensure_community_user!
     end
+  end
 
-    @hot_questions = Rails.cache.fetch("hot_questions", expires_in: 30.minutes) do
-      Question.undeleted.where(updated_at: (Rails.env.development? ? 365 : 1).days.ago..Time.now)
-              .order('score DESC').limit(SiteSetting['HotQuestionsCount'])
-    end
-    if user_signed_in? && (current_user.is_moderator || current_user.is_admin)
-      @open_flags = Flag.unhandled.count
+  def pull_pinned_links_and_hot_questions
+    @pinned_links = Rails.cache.fetch_collection('pinned_links', expires_in: 2.hours) do
+      Rack::MiniProfiler.step 'pinned_links: cache miss' do
+        PinnedLink.where(active: true).current.all
+      end
     end
 
-    if !user_signed_in? && cookies[:dismiss_fvn] != 'true'
-      @first_visit_notice = true
+    # We need to filter out pinned links that aren't posts
+    # If pinned_post_ids contains nil, then the query formed is
+    # SELECT WHERE NOT IN (... NULL)
+    # In SQL, when the rhs of IN contains NULL, it returns NULL if not present, rather than false
+    # Secondly, NOT NULL evaluates to NULL
+    # These two counterintuitive behaviors mean that if NULL is in pinned_post_ids,
+    # Post not pinned => NOT IN pinned_post_ids = NOT NULL = NULL => Not Selected
+    # Post pinned => NOT IN pinned_post_ids = NOT TRUE = FALSE => Not Selected
+    # I.e., if pinned_post_ids contains null, the selection will never return records
+    pinned_post_ids = @pinned_links.map(&:post_id).compact
+
+    @hot_questions = Rails.cache.fetch_collection('hot_questions', expires_in: 4.hours) do
+      Rack::MiniProfiler.step 'hot_questions: cache miss' do
+        Post.undeleted.not_locked.where(closed: false)
+            .where(last_activity: (Rails.env.development? ? 365 : 7).days.ago..DateTime.now)
+            .where(post_type_id: [Question.post_type_id, Article.post_type_id])
+            .joins(:category).where(categories: { use_for_hot_posts: true })
+            .where('score >= ?', SiteSetting['HotPostsScoreThreshold'])
+            .where.not(id: pinned_post_ids)
+            .limit(SiteSetting['HotQuestionsCount'])
+      end
+    end.order('score DESC')
+
+    # eager loading revived collections' used relation to prevent N+1 queries
+    @pinned_links = @pinned_links.list_includes
+    @hot_questions = @hot_questions.list_includes
+  end
+
+  def pull_categories
+    @header_categories = Rails.cache.fetch_collection('header_categories') do
+      Category.all
+    end.order(sequence: :asc, id: :asc)
+  end
+
+  def check_if_warning_or_suspension_pending
+    return unless ModWarning.to(current_user).active.any?
+
+    flash.clear
+
+    redirect_to(current_mod_warning_path)
+  end
+
+  def enforce_2fa
+    if current_user &&
+       !current_user.enabled_2fa? &&
+       Rails.env.production? &&
+       # Don't enforce 2fa auth unless the setting is enabled
+       SiteSetting['EnableMandatoryGlobalAdminMod2FA'] &&
+       # Enable users to log out even if 2fa is enforced
+       !request.fullpath.end_with?('/users/sign_out') &&
+       current_user.at_least_global_moderator? &&
+       (current_user.sso_profile.blank? || SiteSetting['Enable2FAForSsoUsers'])
+      redirect_path = '/users/two-factor'
+      unless request.fullpath.end_with?(redirect_path)
+        flash[:notice] = 'All global admins and global moderators must enable two-factor authentication to continue' \
+                         'using this site. Please do so below'
+        redirect_to(redirect_path)
+      end
+    end
+  end
+
+  # Ensure that the user is signed in before showing any content. If the user is not signed in, display the main page.
+  #
+  # Exceptions:
+  # - 4** and 500 error pages
+  # - stylesheets and javascript
+  # - assets
+  # - /help, /policy, /help/* and /policy/*
+  def enforce_signed_in
+    # If not restricted, the user is signed in or the environment is test, allow all content.
+    return true if !SiteSetting['RestrictedAccess'] || user_signed_in? || Rails.env.test?
+
+    # Allow error pages and assets
+    path = request.fullpath
+    return true if path.start_with?('/4') || path == '/500' ||
+                   path.start_with?('/assets/') ||
+                   path.end_with?('.css') || path.end_with?('.js')
+
+    # Used by derived controllers to avoid leaking featured posts to the sidebar
+    @prevent_sidebar = true
+
+    # Allow /help (help center), /help/* and /policy/* depending on settings
+    help = SiteSetting['RestrictedAccessHelpPagesPublic']
+    policy = SiteSetting['RestrictedAccessPolicyPagesPublic']
+    return true if (help && path.start_with?('/help/')) ||
+                   (policy && path.start_with?('/policy/')) ||
+                   (path == '/help' && (help || policy))
+
+    store_location_for(:user, request.fullpath) if storable_location?
+
+    render 'errors/restricted_content', layout: 'without_sidebar', status: :forbidden
+    false
+  end
+
+  def block_write_request(**add)
+    respond_to do |format|
+      format.html do
+        render 'errors/read_only', layout: 'without_sidebar', status: :not_found
+      end
+      format.json do
+        render json: { status: 'failed', success: false, errors: ['read_only'] }.merge(add), status: :locked
+      end
+    end
+  end
+
+  def read_only_mode?
+    helpers.read_only? && request.method.upcase == 'POST'
+  end
+
+  def current_user
+    helpers.current_user
+  end
+
+  def system_user
+    helpers.system_user
+  end
+
+  def user_signed_in?
+    helpers.user_signed_in?
+  end
+
+  def sso_sign_in_enabled?
+    helpers.sso_sign_in_enabled?
+  end
+
+  def devise_sign_in_enabled?
+    helpers.devise_sign_in_enabled?
+  end
+
+  def redirect_to_sign_in
+    if devise_sign_in_enabled?
+      redirect_to new_user_session_path
     else
-      @first_visit_notice = false
+      redirect_to new_saml_user_session_path
     end
+  end
 
-    if current_user&.is_admin
-      Rack::MiniProfiler.authorize_request
+  def authenticate_user!(_fav = nil, **_opts)
+    unless user_signed_in?
+      respond_to do |format|
+        format.html do
+          flash[:error] = I18n.t('users.errors.unauthorized')
+          redirect_to_sign_in
+        end
+        format.json do
+          render json: { status: 'failed',
+                         success: false,
+                         error: I18n.t('users.errors.unauthorized') },
+                 status: :unauthorized
+        end
+      end
     end
+  end
+
+  # Checks if the requested location should be stored.
+  #
+  # Its important that the location is NOT stored if:
+  # - The request method is not GET (non idempotent)
+  # - The request is handled by a Devise controller such as Devise::SessionsController as that could cause an
+  #    infinite redirect loop.
+  # - The request is an Ajax request as this can lead to very unexpected behaviour.
+  # - The request is to a location we dont want to store, such as:
+  #   - Anything trying to fetch for the current user (filters, preferences, etc) as it is not the actual page
+  #   - The mobile login, as it would redirect to the code url after the sign in
+  #   - Uploaded files, as these appear in posts and are not the main route we would want to store
+  def storable_location?
+    request.get? && is_navigational_format? && !devise_controller? && !request.xhr? &&
+      !request.path.start_with?('/users/me') &&
+      !request.path.start_with?('/users/mobile-login') &&
+      !request.path.start_with?('/uploads/')
+  end
+
+  # Stores the location in the system for the current session, such that after login we send them back to the same page.
+  def store_user_location!
+    store_location_for(:user, request.fullpath)
+  end
+
+  def require_sudo
+    unless user_signed_in? && session[:sudo].present? &&
+           DateTime.iso8601(session[:sudo]) >= AppConfig.server_settings['user_sudo_duration'].minutes.ago
+      session[:sudo_return] = request.fullpath
+      redirect_to user_sudo_path
+    end
+  end
+
+  # default request_authenticity_tokens only checks form tokens and request.x_csrf_token
+  # for some reason, even if cookie-based strategy is officially supported, it's not checked here
+  def request_authenticity_tokens
+    super << csrf_token_storage_strategy.fetch(request)
+  end
+
+  def normalize(maybe_string)
+    return maybe_string unless maybe_string.is_a?(String)
+
+    maybe_string.encode(maybe_string.encoding, universal_newline: true).strip
   end
 end

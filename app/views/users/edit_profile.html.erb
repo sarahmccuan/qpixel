@@ -1,0 +1,142 @@
+<%
+  title = 'Edit Profile'
+%>
+
+<% content_for :head do %>
+  <%= render 'posts/markdown_script' %>
+<% end %>
+
+<% content_for :title, title %>
+
+<%= render 'tabs', user: current_user, active_tab: 'edit' %>
+
+<h1><%= title %></h1>
+
+<% if defined?(@user) && @user.errors.any? %>
+  <div class="notice is-danger">
+    There were some errors while saving your profile:
+
+    <ul>
+      <% @user.errors.full_messages.each do |msg| %>
+        <li><%= msg %></li>
+      <% end %>
+    </ul>
+  </div>
+<% end %>
+
+<%= render 'posts/image_upload' %>
+
+<%= form_for current_user, url: update_user_profile_path do |f| %>
+  <div class="form-group has-padding-2">
+    <img alt="user avatar"
+         class="has-float-right has-margin-2 avatar-64"
+         title="Current avatar"
+         src="<%= avatar_url(current_user, 64) %>"
+         height="64"
+         width="64" />
+    <%= f.label :avatar, class: "form-element" %>
+    <div class="form-caption js-max-size" for="<%= f.field_id(:avatar) %>">
+      An optional profile picture. Max file size is <%= human_max_upload_size %>.
+    </div>
+    <%= f.file_field :avatar, class: "form-element" %>
+  </div>
+  <div class="has-clear-clear"></div>
+
+  <div class="form-group has-padding-2">
+    <%= f.label :username, class: "form-element" %>
+    <div class="form-caption">What other people call you.</div>
+    <%= f.text_field :username,
+                     class: 'form-element',
+                     autocomplete: 'off',
+                     data: { character_count: '.js-character-count-user-name' } %>
+    <%= render 'shared/char_count', type: 'user-name', cur: current_user.username&.length, min: 3, max: 50 %>
+  </div>
+
+  <%= render 'shared/body_field',
+             f: f,
+             field_name: :profile_markdown,
+             field_label: 'Profile',
+             post: current_user,
+             cur_length: current_user.profile_markdown&.length,
+             min_length: 0 %>
+
+  <% unless current_user.community_user.privilege?('unrestricted') %>
+    <p>Note: Links are not shown publicly until you have earned the Participate Everywhere ability.</p>
+  <% end %>
+  <div class="post-preview"></div>
+
+  <div>
+    <p>Extra fields -- your web site, GitHub profile, social-media usernames, whatever you want.<br/>
+      Only values that begin with "http" are rendered as links.</p>
+    <div class="grid">
+      <%= f.fields_for :user_websites do |w| %>
+        <div class="grid grid--cell is-12 is-12-sm">
+          <div class="grid grid--cell is-3 is-3-sm">
+            <div class="grid--cell is-12"><%= w.text_field :label,
+                                                           class: 'form-element',
+                                                           autocomplete: 'off',
+                                                           placeholder: 'label' %></div>
+          </div>
+          <div class="grid grid--cell is-6 is-9-sm">
+            <div class="grid--cell is-12"><%= w.text_field :url,
+                                                           class: 'form-element',
+                                                           autocomplete: 'off',
+                                                           placeholder: 'https://...' %></div>
+          </div>
+        </div>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="form-group has-padding-2">
+    <%= f.label :discord, class: 'form-element' %>
+    <span class="form-caption">Your Discord user tag, <code>username</code> or <code>username#1234</code>.</span>
+    <%= f.text_field :discord, class: 'form-element', autocomplete: 'off', placeholder: 'username#1234' %>
+  </div>
+
+  <%= f.submit 'Save', class: 'button is-filled js-submit-profile-edit' %>
+  <%= link_to 'Cancel',
+              users_me_path,
+              class: 'button is-muted is-outlined js-cancel-edit',
+              data: { question_body: t('posts.unsaved_changes_confirmation') },
+              role: 'button' %>
+<% end %>
+
+<% if SiteSetting['AllowContentTransfer'] && current_user.se_acct_id.nil? %>
+  <div class="has-padding-4">
+    <h2>Link with Stack Exchange</h2>
+    <p>
+      If you have an account on Stack Exchange, you can link it to your account here. Once your accounts are linked,
+      you'll be able to request that any content you created on Stack Exchange that has been copied across here is
+      transferred to you.
+    </p>
+    <%= link_to stack_oauth_url, class: 'button is-outlined', 'aria-label': 'Authenticate Stack Exchange account' do %>
+      <i class="fab fa-stack-exchange"></i> Authenticate
+    <% end %>
+  </div>
+<% elsif SiteSetting['AllowContentTransfer'] && !current_user.transferred_content %>
+  <div class="has-padding-4">
+    <h3>Claim your Stack Exchange content</h3>
+    <p>
+      Your account has a <a href="https://stackexchange.com/users/<%= current_user.se_acct_id %>">linked Stack Exchange account</a>.
+      You can use the button below to have your content from Stack Exchange that has been copied here transferred to you.
+    </p>
+    <%= form_tag claim_stack_content_path do %>
+      <div class="notice is-warning has-margin-top-4 has-margin-bottom-4">
+        <i class="fas fa-exclamation-circle"></i>
+        <strong>To claim your Stack Exchange content, we need you to agree to re-license your posts.</strong><br/>
+        When you posted on Stack Exchange, you granted Stack Exchange a CC BY-SA license to distribute your content; that's
+        what lets us display your content here too, as long as we attribute it back to you on Stack Exchange. When you claim your
+        content, we'll remove that attribution link to Stack Exchange and link it to you here instead, but we need you to grant us
+        a license under <%= license_link %> to do so.
+        <div class="checkbox has-margin-top-4">
+          <%= label_tag :agree_to_relicense, class: "form-element" do %>
+            <%= check_box_tag :agree_to_relicense, 'true', class: "form-element-checkbox" %>
+            I agree to relicense my posts to <%= SiteSetting['SiteName'] %> under <%= license_link %>.
+          <% end %>
+        </div>
+      </div>
+      <%= submit_tag 'Claim Content', name: nil, class: 'button is-outlined' %>
+    <% end %>
+  </div>
+<% end %>

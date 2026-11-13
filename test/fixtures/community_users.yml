@@ -1,3 +1,10 @@
+sample_basic_user:
+  user: basic_user
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
 sample_standard_user:
   user: standard_user
   community: sample
@@ -18,6 +25,13 @@ sample_editor:
   is_admin: false
   is_moderator: false
   reputation: 501
+
+sample_tags_editor:
+  user: tags_editor
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 42
 
 sample_deleter:
   user: deleter
@@ -49,6 +63,117 @@ sample_global_moderator:
 
 sample_global_admin:
   user: global_admin
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+sample_developer:
+  user: developer
+  community: sample
+  is_admin: true
+  is_moderator: false
+  reputation: 1
+
+sample_staff:
+  user: staff
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+sample_deleted_account:
+  user: deleted_account
+  community: sample
+  is_admin: false
+  is_moderator: false
+  deleted: true
+  deleted_at: 2020-01-02T00:00:00.000000Z
+  deleted_by: global_admin
+  reputation: 1
+
+sample_deleted_profile:
+  user: deleted_profile
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+  deleted: true
+  deleted_at: 2020-01-02T00:00:00.000000Z
+  deleted_by: global_admin
+
+sample_enabled_2fa:
+  user: enabled_2fa
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+sample_spammer:
+  user: spammer
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+sample_profile_spammer:
+  user: profile_spammer
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+sample_edit_scorer:
+  user: edit_scorer
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+sample_flag_scorer:
+  user: flag_scorer
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+sample_post_scorer:
+  user: post_scorer
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+sample_merge_source:
+  user: merge_source
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 42
+
+sample_merge_target:
+  user: merge_target
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 24
+
+high_rep_spammer:
+  user: high_rep_spammer
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1000
+
+bad_ip_prefix:
+  user: bad_ip_prefix
+  community: sample
+  is_admin: false
+  is_moderator: false
+  reputation: 1
+
+bad_ip_cidr:
+  user: bad_ip_cidr
   community: sample
   is_admin: false
   is_moderator: false

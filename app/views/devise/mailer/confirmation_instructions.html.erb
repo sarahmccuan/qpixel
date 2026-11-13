@@ -1,5 +1,17 @@
-<p>Welcome <%= @email %>!</p>
+<p>Welcome to <%= SiteSetting['NetworkName'] %>, <%= @resource.username %>! We're glad you're here. (If this wasn't you, please ignore this email.)</p>
 
-<p>You can confirm your account email through the link below:</p>
+<p>
+  Please confirm your registration by clicking below (or copy and paste the URL into your browser).
+  You cannot sign in to your account until you do this.
+</p>
 
-<p><%= link_to 'Confirm my account', confirmation_url(@resource, confirmation_token: @token) %></p>
+<p>
+  <%= link_to 'Confirm my account', confirmation_url(@resource, confirmation_token: @token, host: RequestContext.community.host),
+              class: 'button is-filled' %>
+</p>
+
+<p class="has-font-size-smaller has-color-tertiary-700">
+  <%= confirmation_url(@resource, confirmation_token: @token, host: RequestContext.community.host) %>
+</p>
+
+<%= sanitize(render_markdown(SiteSetting['FriendlyEmailFooter']), scrubber: scrubber) %>

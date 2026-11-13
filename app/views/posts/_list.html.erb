@@ -1,34 +1,77 @@
-<% is_question = post.post_type_id == Question.post_type_id %>
-<% is_meta = (is_question && post.is_meta) || (!is_question && post.parent.is_meta) %>
-<% active_user = post.last_activity_by || post.user %>
-<div class="item-list--item <%= is_meta ? 'post__meta' : '' %> <%= post.deleted ? 'deleted-content' : '' %>">
-  <div class="item-list--number-value">
-    <span class="item-list--number"><%= post.score %></span>
-    <span class="item-list--number-label">score</span>
-  </div>
+<% @show_type_tag = !!defined?(show_type_tag) ? show_type_tag : false %>
+<% @show_category_tag = !!defined?(show_category_tag) ? show_category_tag : false %>
+<% @last_activity = !!defined?(last_activity) ? last_activity : true %>
+
+<div class="item-list--item <%= post.deleted ? 'deleted-content' : '' %>" data-ckb-list-item data-ckb-item-type="link">
+  <% if post.post_type.has_votes %>
+    <div class="item-list--number-value" title="Score: <%= post.score %>">
+      <div class="meter is-question-score">
+        <div class="meter--bar is-<%= (post.score * 100).to_i %>%"><%= (post.score * 100).to_i %>%</div>
+      </div>
+      <span class="item-list--number">
+        <span class="js-upvote-count has-font-size-subheading">+<%= post.upvote_count %></span>
+      </span>
+      <span class="item-list--number">
+        <span class="js-downvote-count has-font-size-subheading">&minus;<%= post.downvote_count %></span>
+      </span>
+    </div>
+  <% else %>
+    <div class="item-list--number-value post--no-votes">
+      <i class="far fa-dot-circle" title="This post type does not support voting."></i>
+    </div>
+  <% end %>
   <div class="item-list--text-value is-primary">
     <div class="post-list--title">
-      <%= link_to is_question ? share_question_path(post) : share_answer_path(qid: post.parent_id, id: post.id) do %>
-        <% if (is_question && post.is_meta) || (!is_question && post.parent.is_meta) %>
-          <span class="badge is-tag is-master-tag is-muted">meta</span>
+      <%= link_to generic_share_link(post), 'data-ckb-item-link' => '' do %>
+        <% if @show_category_tag && post.post_type.has_category %>
+          <span class="badge is-tag is-filled"><%= post.category.name %></span>
         <% end %>
-        <%= is_question ? post.title : post.parent.title %>
-        <%= is_question && post.closed ? "[closed]" : "" %>
+        <%= rendered_title(post) %>
+        <%= post.post_type.is_closeable && post.closed && !post.duplicate_post  ? "[closed]" : "" %>
+        <%= post.duplicate_post && post.post_type.is_closeable && post.closed ? "[duplicate]" : "" %>
       <% end %>
     </div>
-    <p class="has-color-tertiary-600 has-float-right post-list--meta">	
-      <% if is_question %>	
-        <span class="answer-count">	
-          <%= post.answer_count %> <%= post.answer_count != 1 ? 'answers' : 'answer' %>	
-        </span>&nbsp;&middot;&nbsp;	
-      <% end %>	
-      last activity <%= time_ago_in_words(post.last_activity) %> ago by <%= link_to active_user.username, user_path(active_user) %>	
+    <% if (SiteSetting['PostBodyListTruncateLength'] || 0) > 0 %>
+      <p class="post-list--content">
+        <%= sanitize(strip_tags(post.body).truncate(SiteSetting['PostBodyListTruncateLength'] || 200), scrubber: scrubber) %>
+      </p>
+    <% end %>
+    <p class="has-color-tertiary-600 has-float-right post-list--meta">
+      <% if post.post_type.has_answers? %>
+        <span class="answer-count <%= post.answer_count == 0 ? 'badge is-tag is-red is-small' : 'h-c-green-700' %>">
+          <%= pluralize(post.answer_count, 'answer') %>
+        </span>&nbsp;&middot;&nbsp;
+      <% end %>
+      posted <span title="<%= post.created_at.iso8601 %>"><%= time_ago_in_words(post.created_at, locale: :en_abbrev) %> ago</span>
+      by <%= post_user_link(post) %>
+      <% if post.last_activity != post.created_at %>
+        &nbsp;&middot;&nbsp; <%= post.last_activity_type %>
+        <span title="<%= post.last_activity.iso8601 %>"><%= time_ago_in_words(post.last_activity, locale: :en_abbrev) %> ago</span>
+        by <%= post_user_link(post, active: true) %>
+      <% end %>
     </p>
-    <div class="has-padding-top-2">
-      <% if is_question %>
-        <% tag_set = post.tag_set %>
-        <% post.tags_cache.each do |tag| %>
-          <%= link_to tag, questions_tagged_path(tag_set: tag_set.id, tag: tag), class: 'badge is-tag' %>
+    <div class="has-padding-top-2 post-list--tags">
+      <% category = defined?(@category) ? @category : post.category %>
+      <% if @show_type_tag || category.display_post_types.reject { |e| e.to_s.empty? }.size > 1 %>
+        <%= post_type_badge(post.post_type) %>
+      <% end %>
+      <% if post.post_type.has_tags %>
+        <% required_tag_ids = post.category&.required_tag_ids %>
+        <% moderator_tag_ids = post.category&.moderator_tag_ids %>
+        <% topic_tag_ids = post.category&.topic_tag_ids %>
+        <% category_sort_tags(post.tags, required_tag_ids, topic_tag_ids, moderator_tag_ids).each do |tag| %>
+          <%= render 'posts/tag_badge', post: post,
+                                        tag: tag,
+                                        moderator_tag_ids: moderator_tag_ids,
+                                        required_tag_ids: required_tag_ids,
+                                        topic_tag_ids: topic_tag_ids %>
+        <% end %>
+      <% end %>
+      <% display_label = user_preference('display_import_labels', community: true) == 'true' %>
+      <% if (post.att_source.present? || post.created_at < RequestContext.community.created_at) && display_label %>
+        <%= link_to post.att_source, class: 'badge is-tag' do %>
+          <i class="fab fa-stack-exchange" title="Imported <%= post.created_at.iso8601 %>"
+             aria-label="Imported <%= post.created_at.iso8601 %>"></i>
         <% end %>
       <% end %>
     </div>

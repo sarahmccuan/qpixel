@@ -1,35 +1,77 @@
 discussion:
   name: discussion
-  description: discussion
   community: sample
   tag_set: main
 
 support:
   name: support
-  description: support
   community: sample
   tag_set: main
 
 bug:
   name: bug
-  description: bug
+  excerpt: use for bug reports
   community: sample
   tag_set: main
 
 feature-request:
   name: feature-request
-  description: feature-request
   community: sample
   tag_set: main
 
 faq:
   name: faq
-  description: faq
   community: sample
   tag_set: meta
 
 status-completed:
   name: status-completed
-  description: status-completed
   community: sample
   tag_set: meta
+
+topic:
+  name: topic-tag
+  community: sample
+  tag_set: main
+
+child:
+  name: child-tag
+  community: sample
+  tag_set: main
+  parent: topic
+
+base:
+  name: base
+  community: sample
+  tag_set: main
+
+with_vacuous_wiki:
+  name: vacuous-wiki
+  community: sample
+  tag_set: main
+  wiki: '<p><a href=""></a></p>'
+  wiki_markdown: '[]()'
+
+with_wiki:
+  name: with-wiki
+  community: sample
+  tag_set: main
+  wiki: <p>This tag has a wiki</p>
+  wiki_markdown: This tag has a wiki
+
+chain_l1:
+  name: level-1-tag
+  community: sample
+  tag_set: main
+
+chain_l2:
+  name: level-2-tag
+  community: sample
+  tag_set: main
+  parent: chain_l1
+
+chain_l3:
+  name: level-3-tag
+  community: sample
+  tag_set: main
+  parent: chain_l2

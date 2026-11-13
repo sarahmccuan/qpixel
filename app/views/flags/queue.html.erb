@@ -1,26 +1,56 @@
 <% content_for :title, "Moderator Flag Queue" %>
+<%= link_to moderator_path, class: 'has-font-size-small' do %>
+  &laquo; Return to moderator tools
+<% end %>
 
 <h1>Moderator Flag Queue</h1>
 <p>Below is a list of posts that users have flagged. Users are asked to provide a reason when flagging posts for
   moderator attention; use that to help you determine what needs to be done.</p>
+<p>You can mark a flag helpful even if you take no action. If a post was edited after the flag was raised, for example, the problem might already be fixed.</p>
+
+<div class="flags-list-header">
+  <div class="button-list is-gutterless">
+    <%= link_to 'Active', flag_queue_path,
+              class: "button is-muted is-outlined #{'is-active' if current_page?(flag_queue_path)}" %>
+    <%= link_to 'Handled', handled_flags_path, class: 'button is-muted is-outlined' %>
+    <% if admin? %>
+      <%= link_to 'Escalated', escalated_flags_path,
+                class: "button is-muted is-outlined #{'is-active' if current_page?(escalated_flags_path)}" %>
+    <% end %>
+  </div>
+
+  <% sorting_types = current_page?(escalated_flags_path) ?
+                      ['age', { type: 'escalated', title: 'time escalated' }] :
+                      %w[age] %>
+
+  <%= render 'shared/sorting', default_order: @default_sort_order,
+                               default_type: @default_sort_type,
+                               types: sorting_types %>
+</div>
 
 <% @flags.each do |flag| %>
-  <div class="widget">
-    <div class="item-list">
-      <%= render 'posts/list', post: flag.post %>
-    </div>
-    <div class="widget--body">
-      <p><strong>Flag reason:</strong> <%= flag.reason %> &mdash; <a href="/users/<%= flag.user.id %>"><%= flag.user.username %></a></p>
-    </div>
-    <div class="widget--footer">
-      <input class="form-element flag-resolve-comment has-float-left" style="max-width: 300px;" placeholder="Optional comment for flagger">
-      <div class="has-float-right has-padding-1">
-        <a href="#" class="flag-resolve button" data-result='helpful' data-flag-id="<%= flag.id %>">Helpful</a>
-        <a href="#" class="flag-resolve button" data-result='declined' data-flag-id="<%= flag.id %>">Decline</a>
-      </div>
-      <div class="has-clear-clear"></div>
-    </div>
-  </div>
+  <%= render 'flag', flag: flag, escalation: current_page?(escalated_flags_path) %>
 <% end %>
 
 <%= will_paginate @flags, renderer: BootstrapPagination::Rails %>
+
+<div class="modal is-with-backdrop js-escalation-modal">
+  <div class="modal--container">
+    <div class="modal--header">
+      <button class="button is-close-button modal--header-button" data-modal=".js-escalation-modal">&times;</button>
+      Escalate
+    </div>
+    <div class="modal--body">
+      <p class="has-font-size-caption">
+        If you need support, additional tooling, or further review, you can escalate a flag to the admin team.
+        You can optionally add additional details to let an admin know why you're escalating this flag.
+      </p>
+
+      <%= label_tag :comment %>
+      <%= text_field_tag :comment, nil, class: 'form-element js-escalation-comment' %>
+    </div>
+    <div class="modal--footer">
+      <%= button_tag 'Escalate', class: 'button is-filled js-flag-escalate' %>
+    </div>
+  </div>
+</div>

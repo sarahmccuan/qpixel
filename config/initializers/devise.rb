@@ -1,3 +1,7 @@
+require 'devise/mailer'
+
+Devise::Mailer.layout 'devise_mailer'
+
 # Use this hook to configure devise mailer, warden hooks and so forth.
 # Many of these configuration options can be set straight in your model.
 Devise.setup do |config|
@@ -7,13 +11,12 @@ Devise.setup do |config|
   # Devise will use the `secret_key_base` as its `secret_key`
   # by default. You can change it below and use your own secret key.
   # config.secret_key = 'a01993900cb61b8d32ff3a777b37164cc49d880aaa8e03c3f9a2990612fa1b4c588d934556e60ea4f51dd334d23caa8ca9ba6a84d651cb412a3d155096b74556'
-  config.secret_key = 'd379fc6a0bc73bc2faf863d6846f1bd676af3adb46b594f8b3287c52b54cd303556961e03716e370c0031692ec9fc698aee177676f939f3825befbf4b5ef8e9a'
 
   # ==> Mailer Configuration
   # Configure the e-mail address which will be shown in Devise::Mailer,
   # note that it will be overwritten if you use your own mailer class
   # with default "from" parameter.
-  config.mailer_sender = 'writing@codidact.com'
+  config.mailer_sender = '"Codidact" <no-reply@codidact.com>'
 
   # Configure the class responsible to send e-mails.
   # config.mailer = 'Devise::Mailer'
@@ -106,7 +109,7 @@ Devise.setup do |config|
   # config.pepper = '87767bd8e2fa1b42fdf61c33717d80f306570b0c0eb964f090023e7e23f3f196ea847ea7a1c7dd16efff145511e9aa0a80094024708dbe3406b1a184f43ee18a'
 
   # Send a notification email when the user's password is changed
-  # config.send_password_change_notification = false
+  config.send_password_change_notification = true
 
   # ==> Configuration for :confirmable
   # A period that the user is allowed to access the website even without
@@ -122,7 +125,7 @@ Devise.setup do |config|
   # their account can't be confirmed with the token any more.
   # Default is nil, meaning there is no restriction on how long a user can take
   # before confirming their account.
-  # config.confirm_within = 3.days
+  config.confirm_within = 3.hours
 
   # If true, requires any email changes to be confirmed (exactly the same way as
   # initial account confirmation) to be applied. Requires additional unconfirmed_email
@@ -135,7 +138,7 @@ Devise.setup do |config|
 
   # ==> Configuration for :rememberable
   # The time the user will be remembered without asking for credentials again.
-  # config.remember_for = 2.weeks
+  config.remember_for = 3.months
 
   # Invalidates all the remember me tokens when the user signs out.
   config.expire_all_remember_me_on_sign_out = true
@@ -165,27 +168,27 @@ Devise.setup do |config|
   # Defines which strategy will be used to lock an account.
   # :failed_attempts = Locks an account after a number of failed attempts to sign in.
   # :none            = No lock strategy. You should handle locking by yourself.
-  # config.lock_strategy = :failed_attempts
+  config.lock_strategy = :failed_attempts
 
   # Defines which key will be used when locking and unlocking an account
-  # config.unlock_keys = [:email]
+  config.unlock_keys = [:email]
 
   # Defines which strategy will be used to unlock an account.
   # :email = Sends an unlock link to the user email
   # :time  = Re-enables login after a certain amount of time (see :unlock_in below)
   # :both  = Enables both strategies
   # :none  = No unlock strategy. You should handle unlocking by yourself.
-  # config.unlock_strategy = :both
+  config.unlock_strategy = :email
 
   # Number of authentication tries before locking an account if lock_strategy
   # is failed attempts.
-  # config.maximum_attempts = 20
+  config.maximum_attempts = 10
 
   # Time interval to unlock the account if :time is enabled as unlock_strategy.
   # config.unlock_in = 1.hour
 
   # Warn on the last attempt before the account is locked.
-  # config.last_attempt_warning = true
+  config.last_attempt_warning = true
 
   # ==> Configuration for :recoverable
   #
@@ -195,7 +198,7 @@ Devise.setup do |config|
   # Time interval you can reset your password with a reset password key.
   # Don't put a too small interval or your users won't have the time to
   # change their passwords.
-  config.reset_password_within = 6.hours
+  config.reset_password_within = 3.hours
 
   # When set to false, does not sign a user in automatically after their password is
   # reset. Defaults to true, so a user is signed in automatically after a reset.
@@ -266,4 +269,78 @@ Devise.setup do |config|
   # When using OmniAuth, Devise cannot automatically set OmniAuth path,
   # so you need to do it manually. For the users scope, it would be:
   # config.omniauth_path_prefix = '/my_engine/users/auth'
+
+  # Reference https://github.com/apokalipto/devise_saml_authenticatable
+  # ==> Configuration for :saml_authenticatable
+
+  # Add prefix to saml routes
+  config.saml_route_helper_prefix = 'saml'
+
+  # Create user if the user does not exist.
+  config.saml_create_user = true
+
+  # Update the attributes of the user after a successful login. Set this to
+  # false if you don't want to update the users email address from saml when it
+  # is changed.
+  config.saml_update_user = true
+
+  # Set the default user key. The user will be looked up by this key. Make
+  # sure that the (mapped) Authentication Response includes the attribute.
+  #
+  # In the attribute map we register this as saml_init_identifier
+  # (the method to call), so this is also how we have to refer to it here.
+  config.saml_default_user_key = :'saml_init_identifier'
+
+  # Load by sso_profile instead of by email address.
+  config.saml_resource_locator = Proc.new do |model, saml_response, auth_value|
+    # You can use saml_response here to access other attributes than the saml_default_user_key indicated above if need be.
+    SsoProfile.includes(:user).find_by(saml_identifier: auth_value)&.user
+  end
+
+  # Optional. This stores the session index defined by the IDP during login.  If provided it will be used as a salt
+  # for the user's session to facilitate an IDP initiated logout request.
+  config.saml_session_index_key = :session_index
+
+  # You can set this value to use Subject or SAML assertation as info to which email will be compared.
+  # If you don't set it then email will be extracted from SAML assertation attributes.
+  config.saml_use_subject = false
+
+  # You can support multiple IdPs by setting this value to a class that implements a #settings method which takes
+  # an IdP entity id as an argument and returns a hash of idp settings for the corresponding IdP.
+  config.idp_settings_adapter = nil
+
+  # You provide you own method to find the idp_entity_id in a SAML message in the case of multiple IdPs
+  # by setting this to a custom reader class, or use the default.
+  # config.idp_entity_id_reader = DeviseSamlAuthenticatable::DefaultIdpEntityIdReader
+
+  # You can set a handler object that takes the response for a failed SAML request and the strategy,
+  # and implements a #handle method. This method can then redirect the user, return error messages, etc.
+  # config.saml_failed_callback = nil
+
+  # Add your SAML configuration from your IDP here.
+  #
+  # Attributes must be mapped in the attribute-map.yml
+  #
+  # For certificates and keys, you can use
+  #   File.read('path/to/certificate')
+  # instead of providing the certificate/key in a string.
+  #
+  # config.saml_configure do |settings|
+  #   settings.assertion_consumer_service_url     = '<http(s)-site-address-here>/users/saml/auth'
+  #   settings.assertion_consumer_service_binding = 'urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST'
+  #   settings.name_identifier_format             = 'urn:oasis:names:tc:SAML:2.0:nameid-format:persistent'
+  #   settings.security[:want_assertions_signed]  = true
+  #   settings.security[:metadata_signed]         = true
+  #   settings.security[:authn_requests_signed]   = true
+  #   settings.force_authn                        = !Rails.env.production?
+  #   settings.protocol_binding                   = "urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST"
+  #   settings.passive                            = false
+  #   settings.issuer                             = '<http(s)-site-address-here>/users/saml/metadata'
+  #   settings.idp_slo_target_url                 = '<single logout service url of IDP>'
+  #   settings.idp_sso_target_url                 = '<single sign on service url of IDP>'
+  #   settings.idp_entity_id                      = '<metadata url of IDP>'
+  #   settings.idp_cert                           = '<certificate of IDP>'
+  #   settings.certificate                        = '<your (self-signed) certificate>'
+  #   settings.private_key                        = '<your key (for your certificate)>'
+  # end
 end

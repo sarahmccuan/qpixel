@@ -1,0 +1,32 @@
+<div class="widget flag-widget">
+  <% if flag.post_type == 'Post' %>
+    <div class="item-list">
+      <%= render 'posts/type_agnostic', show_type_tag: true, show_category_tag: true, post: flag.post %>
+    </div>
+  <% elsif flag.post_type == 'Comment' %>
+    <%= render 'comments/comment', comment: flag.post, with_post_link: true %>
+  <% end %>
+  <div class="widget--body">
+    <p>
+      <strong><%= flag.post_flag_type&.name || 'Flag reason' %>: </strong><%= flag.reason %> &mdash;
+      <%= user_link flag.user %>  at <%= flag.created_at.iso8601 %>
+      (<%= link_to 'history', flag_history_path(flag.user) %>)
+    </p>
+    <p>
+      <% status_colors = { helpful: 'is-green', declined: 'is-red', pending: 'is-muted' } %>
+      <span class="badge is-tag <%= status_colors[(flag.status || 'pending').to_sym] %> is-filled">
+        <%= flag.status || 'pending' %>
+      </span>
+      <% if flag.message.present? %>
+        <strong>response:</strong> <%= flag.message %>
+      <% end %>
+      <% if flag.handled_by_id.present? && current_user.at_least_moderator? %>
+        &mdash;
+        <%= link_to user_path(flag.handled_by) do %>
+          <span dir="ltr"><%= rtl_safe_username(flag.handled_by) %></span>
+          <% end %>
+	  handled at <%= flag.handled_at.iso8601 %>
+      <% end %>
+    </p>
+  </div>
+</div>

@@ -1,55 +1,179 @@
+# rubocop:disable Metrics/ClassLength
 # Provides mainly web actions for using and making comments.
 class CommentsController < ApplicationController
-  before_action :authenticate_user!, except: [:post, :show]
-  before_action :set_comment, only: [:update, :destroy, :undelete, :show]
-  before_action :check_privilege, only: [:update, :destroy, :undelete]
-  @@markdown_renderer = Redcarpet::Markdown.new(Redcarpet::Render::HTML.new, extensions = {})
+  before_action :authenticate_user!, except: [:post, :show, :thread, :thread_content]
 
-  def self.renderer
-    @@markdown_renderer
+  before_action :set_comment, only: [:update, :destroy, :undelete, :show]
+  before_action :set_post, only: [:create_thread, :post_follow, :post_unfollow]
+  before_action :set_thread, only: [:create,
+                                    :thread,
+                                    :thread_content,
+                                    :thread_rename,
+                                    :archive_thread,
+                                    :delete_thread,
+                                    :follow_thread,
+                                    :unfollow_thread,
+                                    :lock_thread,
+                                    :thread_unrestrict,
+                                    :thread_followers]
+  before_action :check_post_access, only: [:create_thread, :create]
+  before_action :check_privilege, only: [:update, :destroy, :undelete]
+  before_action :check_create_access, only: [:create_thread, :create]
+  before_action :check_reply_access, only: [:create]
+  before_action :check_archive_thread_access, only: [:archive_thread]
+  before_action :check_delete_thread_access, only: [:delete_thread]
+  before_action :check_lock_thread_access, only: [:lock_thread]
+  before_action :check_thread_access, only: [:thread, :thread_content, :thread_followers]
+  before_action :check_unrestrict_access, only: [:thread_unrestrict]
+  before_action :check_if_target_post_locked, only: [:create, :create_thread]
+  before_action :check_if_parent_post_locked, only: [:update, :destroy]
+  before_action :verify_moderator, only: [:thread_followers]
+
+  def create_thread
+    title = params[:title]
+    unless title.present?
+      title = helpers.generate_thread_title(params[:body])
+    end
+
+    body = params[:body]
+
+    @comment_thread = CommentThread.new(title: helpers.strip_markdown(title, strip_leading_quote: true), post: @post)
+    @comment = Comment.new(post: @post, content: body, user: current_user, comment_thread: @comment_thread)
+
+    pings = check_for_pings(@comment_thread, body)
+
+    success = ActiveRecord::Base.transaction do
+      thread_success = @comment_thread.save
+      comment_success = @comment.save
+      full_success = thread_success && comment_success
+
+      unless full_success
+        raise ActiveRecord::Rollback
+      end
+
+      full_success
+    end
+
+    if success
+      notification = "New comment thread on #{@comment.root.title}: #{@comment_thread.title}"
+
+      NewThreadFollower.where(post: @post).each do |ntf|
+        unless ntf.user.same_as?(current_user) || pings.include?(ntf.user_id)
+          ntf.user.create_notification(notification, helpers.comment_link(@comment))
+        end
+        ThreadFollower.create(user: ntf.user, comment_thread: @comment_thread)
+      end
+
+      apply_pings(pings)
+    else
+      flash[:danger] = "Could not create comment thread: #{(@comment_thread.errors.full_messages \
+                                                           + @comment.errors.full_messages).join(', ')}"
+    end
+    redirect_to helpers.generic_share_link(@post)
   end
 
   def create
-    @comment = Comment.new comment_params.merge(user: current_user)
-    root_id = @comment.root.id
-    if @comment.save
-      unless @comment.post.user == current_user
-        @comment.post.user.create_notification("New comment on #{(@comment.root.title)}", comment_link(@comment))
-      end
+    body = params[:content]
+    pings = check_for_pings(@comment_thread, body)
 
-      match = @comment.content.match(/@(?<name>\S+) /)
-      if match && match[:name]
-        user = User.where("LOWER(REPLACE(username, ' ', '')) = LOWER(?)", match[:name]).first
-        user.create_notification("You were mentioned in a comment", comment_link(@comment)) if user
-      end
+    @comment = Comment.new(post: @post, content: body, user: current_user,
+                           comment_thread: @comment_thread, has_reference: false)
 
-      render json: { status: 'success', comment: render_to_string(partial: 'comments/comment', locals: { comment: @comment }) }
+    status = @comment.save
+
+    if status
+      apply_pings(pings)
+      @comment_thread.thread_follower.each do |follower|
+        next if follower.user.same_as?(current_user)
+        next if pings.include? follower.user_id
+
+        thread_url = comment_thread_url(@comment_thread, host: @comment_thread.community.host)
+        existing_notification = follower.user.notifications.where(is_read: false)
+                                        .where('link LIKE ?', "#{thread_url}%")
+        next if existing_notification.exists?
+
+        follower.user.create_notification("There are new comments in a followed thread '#{@comment_thread.title}' " \
+                                          "on the post '#{@comment.root.title}'",
+                                          helpers.comment_link(@comment))
+      end
     else
-      render json: { status: 'failed', message: @comment.errors.full_messages.join(', ') }, status: 500
+      flash[:danger] = @comment.errors.full_messages.join(', ')
+    end
+
+    if params[:inline] == 'true'
+      redirect_to helpers.generic_share_link(@post, comment_id: status ? @comment.id : nil,
+                                                    thread_id: @comment_thread.id)
+    else
+      redirect_to comment_thread_path(@comment_thread.id)
     end
   end
 
   def update
+    @post = @comment.post
+    @comment_thread = @comment.comment_thread
+    before = @comment.content
+    before_pings = check_for_pings(@comment_thread, before)
     if @comment.update comment_params
-      render json: { status: 'success', comment: render_to_string(partial: 'comments/comment', locals: { comment: @comment }) }
+      unless current_user.same_as?(@comment.user)
+        audit('comment_update', @comment, "from <<#{before}>>\nto <<#{@comment.content}>>")
+      end
+
+      after_pings = check_for_pings(@comment_thread, @comment.content)
+      apply_pings(after_pings - before_pings - @comment_thread.thread_follower.to_a)
+
+      render json: { status: 'success',
+                     comment: render_to_string(partial: 'comments/comment',
+                                               locals: { comment: @comment, pingable: after_pings }) }
     else
-      render json: { status: 'failed', message: "Comment failed to save (#{@comment.errors.full_messages.join(', ')})" }, status: 500
+      render json: { status: 'failed',
+                     message: "Comment failed to save (#{@comment.errors.full_messages.join(', ')})" },
+             status: :internal_server_error
     end
   end
 
   def destroy
     if @comment.update(deleted: true)
-      render json: { status: 'success' }
+      @comment_thread = @comment.comment_thread
+
+      unless current_user.same_as?(@comment.user)
+        audit('comment_delete', @comment, "content <<#{@comment.content}>>")
+      end
+
+      respond_to do |format|
+        format.html { redirect_to comment_thread_path(@comment_thread.id) }
+        format.json { render json: { status: 'success' } }
+      end
     else
-      render json: { status: 'failed' }, status: 500
+      respond_to do |format|
+        format.html do
+          flash[:danger] = I18n.t('comments.errors.delete_comment_server_error')
+          redirect_to comment_thread_path(@comment_thread.id)
+        end
+        format.json { render json: { status: 'failed' }, status: :internal_server_error }
+      end
     end
   end
 
   def undelete
     if @comment.update(deleted: false)
-      render json: { status: 'success' }
+      @comment_thread = @comment.comment_thread
+
+      unless current_user.same_as?(@comment.user)
+        audit('comment_undelete', @comment, "content <<#{@comment.content}>>")
+      end
+
+      respond_to do |format|
+        format.html { redirect_to comment_thread_path(@comment_thread.id) }
+        format.json { render json: { status: 'success' } }
+      end
     else
-      render json: { status: 'failed' }, status: 500
+      respond_to do |format|
+        format.html do
+          flash[:danger] = I18n.t('comments.errors.undelete_comment_server_error')
+          redirect_to comment_thread_path(@comment_thread.id)
+        end
+        format.json { render json: { status: 'failed' }, status: :internal_server_error }
+      end
     end
   end
 
@@ -60,16 +184,172 @@ class CommentsController < ApplicationController
     end
   end
 
-  def post
-    @comments = if current_user&.is_moderator || current_user&.is_admin
-                  Comment.all
-                else
-                  Comment.undeleted
-                end.where(post_id: params[:post_id])
+  def thread
+    if stale?(last_modified: @comment_thread.last_activity.utc)
+      respond_to do |format|
+        format.html { render 'comments/thread' }
+        format.json { render json: @comment_thread }
+      end
+    end
+  end
+
+  def thread_content
+    if stale?(last_modified: @comment_thread.last_activity.utc)
+      render partial: 'comment_threads/expanded',
+             locals: { inline: params[:inline] == 'true',
+                       show_deleted: params[:show_deleted_comments] == '1',
+                       thread: @comment_thread }
+    end
+  end
+
+  def thread_followers
+    @followers = ThreadFollower.where(comment_thread: @comment_thread).joins(:user, user: :community_user)
+                               .includes(:user, user: [:community_user, :avatar_attachment])
     respond_to do |format|
       format.html { render layout: false }
-      format.json { render json: @comments }
+      format.json { render json: @followers }
     end
+  end
+
+  def thread_rename
+    if @comment_thread.read_only? && !current_user.at_least_moderator?
+      flash[:danger] = 'This thread has been locked.'
+      redirect_to comment_thread_path(@comment_thread.id)
+      return
+    end
+
+    orig_title = @comment_thread.title
+    title = helpers.strip_markdown(params[:title], strip_leading_quote: true)
+
+    if orig_title == title
+      flash[:danger] = I18n.t('comments.errors.no_rename_thread_to_current_title')
+      redirect_to comment_thread_path(@comment_thread.id)
+      return
+    end
+
+    status = @comment_thread.update(title: title)
+
+    if status
+      # Comment is owned by System so regular users can't delete it. Without
+      # this record, the title would be attributed to the thread creator,
+      # which can be abused.
+      log_msg = Comment.new(post: @post,
+                            content: "Thread renamed from \"#{orig_title}\" to \"#{title}\" by @##{current_user.id}",
+                            user: helpers.system_user,
+                            comment_thread: @comment_thread,
+                            has_reference: false)
+      comment_status = log_msg.save
+    end
+
+    unless status
+      flash[:danger] = I18n.t('comments.errors.rename_thread_generic')
+    end
+
+    unless comment_status
+      flash[:danger] = I18n.t('comments.errors.comment_not_posted')
+    end
+
+    redirect_to comment_thread_path(@comment_thread.id)
+  end
+
+  def archive_thread
+    status = @comment_thread.update(archived: true, archived_by: current_user)
+    restrict_thread_response(@comment_thread, status)
+  end
+
+  def delete_thread
+    status = @comment_thread.update(deleted: true, deleted_by: current_user)
+    restrict_thread_response(@comment_thread, status)
+  end
+
+  def follow_thread
+    status = @comment_thread.add_follower(current_user)
+    restrict_thread_response(@comment_thread, status)
+  end
+
+  def lock_thread
+    lu = nil
+    unless params[:duration].blank?
+      lu = params[:duration].to_i.days.from_now
+    end
+
+    status = @comment_thread.update(locked: true, locked_by: current_user, locked_until: lu)
+    restrict_thread_response(@comment_thread, status)
+  end
+
+  def unarchive_thread
+    status = @comment_thread.update(archived: false, archived_by: nil, ever_archived_before: true)
+    restrict_thread_response(@comment_thread, status)
+  end
+
+  def undelete_thread
+    if @comment_thread.deleted_by.at_least_moderator? && !current_user.at_least_moderator?
+      render json: { status: 'error', message: I18n.t('comments.errors.mod_only_undelete') }
+      return
+    end
+    status = @comment_thread.update(deleted: false, deleted_by: nil)
+    restrict_thread_response(@comment_thread, status)
+  end
+
+  def unfollow_thread
+    status = @comment_thread.remove_follower(current_user)
+    restrict_thread_response(@comment_thread, status)
+  end
+
+  def unlock_thread
+    status = @comment_thread.update(locked: false, locked_by: nil, locked_until: nil)
+    restrict_thread_response(@comment_thread, status)
+  end
+
+  def thread_unrestrict
+    # TODO: remove this wrapper action entirely (callbacks need to be moved, routes assigned, etc)
+    case params[:type]
+    when 'lock'
+      unlock_thread
+    when 'archive'
+      unarchive_thread
+    when 'delete'
+      undelete_thread
+    else
+      not_found!
+    end
+  end
+
+  def post
+    @post = Post.find(params[:post_id])
+    @comment_threads = CommentThread.accessible_to(current_user, @post)
+                                    .where(post: @post)
+                                    .priority_order
+    respond_to do |format|
+      format.html { render layout: false }
+      format.json { render json: @comment_threads }
+    end
+  end
+
+  def post_follow
+    if NewThreadFollower.where(post: @post, user: current_user).none?
+      NewThreadFollower.create(post: @post, user: current_user)
+    end
+
+    respond_to do |format|
+      format.html { redirect_to post_path(@post) }
+      format.json { render json: { status: 'success' } }
+    end
+  end
+
+  def post_unfollow
+    NewThreadFollower.where(post: @post, user: current_user).destroy_all
+
+    respond_to do |format|
+      format.html { redirect_to post_path(@post) }
+      format.json { render json: { status: 'success' } }
+    end
+  end
+
+  def pingable
+    thread = params[:id] == '-1' ? CommentThread.new(post_id: params[:post]) : CommentThread.find(params[:id])
+    users = User.where(id: thread.pingable)
+    render json: users.to_h { |u| [u.username, u.id] }
   end
 
   private
@@ -79,30 +359,141 @@ class CommentsController < ApplicationController
   end
 
   def set_comment
-    @comment = Comment.unscoped.find params[:id]
+    scope = current_user&.at_least_moderator? ? Comment.all : Comment.undeleted
+    @comment = scope.find_by(id: params[:id])
+    not_found! if @comment.nil?
   end
 
-  def check_privilege
-    unless current_user.is_moderator || current_user.is_admin || current_user == @comment.user
-      render template: 'errors/forbidden', status: 401
+  def set_post
+    @post = Post.find(params[:post_id])
+  end
+
+  def set_thread
+    @comment_thread = CommentThread.find(params[:id])
+    @post = @comment_thread.post
+  end
+
+  def check_post_access
+    if !@post.comments_allowed? && current_user&.standard?
+      respond_to do |format|
+        format.html { render template: 'errors/forbidden', status: :forbidden }
+        format.json do
+          message = helpers.comments_post_error_msg(@post)
+          render json: { status: 'failed', message: message },
+                 status: :forbidden
+        end
+      end
+    elsif !@post.can_access?(current_user)
+      not_found!
     end
   end
 
-  def comment_link(comment)
-    comment.post.question? ? question_path(comment.post, anchor: "comment-#{comment.id}") :
-        question_path(comment.post.parent, anchor: "comment-#{comment.id}")
-  end
-end
-
-# Provides a custom HTML sanitization interface to use for cleaning up the HTML in questions.
-class CommentScrubber < Rails::Html::PermitScrubber
-  def initialize
-    super
-    self.tags = %w( a b i em strong strike del code )
-    self.attributes = %w( href title )
+  def check_thread_access
+    not_found! unless @comment_thread.can_access?(current_user)
   end
 
-  def skip_node?(node)
-    node.text?
+  def check_privilege
+    unless current_user&.at_least_moderator? || current_user&.same_as?(@comment.user)
+      render template: 'errors/forbidden', status: :forbidden
+    end
+  end
+
+  def check_create_access
+    rate_limited, limit_message = helpers.comment_rate_limited?(current_user, @post)
+    if rate_limited
+      flash[:danger] = limit_message
+      redirect_to helpers.generic_share_link(@post)
+    end
+  end
+
+  def check_reply_access
+    if @comment_thread.read_only? && current_user&.standard?
+      respond_to do |format|
+        format.html { render template: 'errors/forbidden', status: :forbidden }
+        format.json do
+          message = helpers.comments_thread_error_msg(@comment_thread)
+          render json: { status: 'failed', message: message },
+                 status: :forbidden
+        end
+      end
+    end
+  end
+
+  def check_archive_thread_access
+    not_found! unless current_user.can_archive?(@comment_thread)
+  end
+
+  def check_delete_thread_access
+    not_found! unless current_user.can_delete?(@comment_thread)
+  end
+
+  def check_lock_thread_access
+    not_found! unless current_user.can_lock?(@comment_thread)
+  end
+
+  def check_unrestrict_access
+    # TODO: split into individual checks once unrestrict_thread is split
+    case params[:type]
+    when 'lock'
+      not_found! unless current_user.can_unlock?(@comment_thread)
+    when 'archive'
+      not_found! unless current_user.can_unarchive?(@comment_thread)
+    when 'delete'
+      not_found! unless current_user.can_undelete?(@comment_thread)
+    end
+  end
+
+  def check_if_parent_post_locked
+    check_if_locked(@comment.post)
+  end
+
+  def check_if_target_post_locked
+    check_if_locked(Post.find(params[:post_id]))
+  end
+
+  # @param thread [CommentThread] thread to extract pings for
+  # @param content [String] content to extract pings from
+  # @return [Array<Integer>] list of pinged user ids
+  def check_for_pings(thread, content)
+    pingable = thread.pingable
+    matches = content.scan(Comment::USER_PING_REG_EXP)
+    matches.flatten.select { |m| pingable.include?(m.to_i) }.map(&:to_i)
+  end
+
+  # @param thread [CommentThread] thread to get response for
+  # @param status [Boolean] status of the restrict operation
+  def restrict_thread_response(thread, status)
+    if status
+      render json: { status: 'success', thread: thread }
+    else
+      render json: { status: 'failed',
+                     message: thread.errors.full_messages.join(', ') },
+             status: :bad_request
+    end
+  end
+
+  # @param pings [Array<Integer>] list of pinged user ids
+  def apply_pings(pings)
+    context = @comment_thread.comments.first.same_as?(@comment) ? 'new' : 'comment in the'
+    notification_text =
+      "You were mentioned in a #{context} thread '#{@comment_thread.title}' on the post '#{@comment.root.title}'"
+
+    pings.each do |p|
+      user = User.where(id: p).first
+      next if user.nil?
+
+      user.create_notification(notification_text, helpers.comment_link(@comment))
+    end
+  end
+
+  # @param event_type [String] audit log event type
+  # @param comment [Comment] comment the audit is about
+  # @param audit_comment [String] additional info to log
+  def audit(event_type, comment, audit_comment = '')
+    AuditLog.moderator_audit(event_type: event_type,
+                             comment: audit_comment,
+                             related: comment,
+                             user: current_user)
   end
 end
+# rubocop:enable Metrics/ClassLength

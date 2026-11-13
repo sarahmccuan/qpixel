@@ -1,26 +1,38 @@
-<div class="tabs">
-  <%= link_to user_path(current_user), class: "tabs--item" do %>
-    <i class="fas fa-user"></i> Profile
-  <% end %>
-  <%= link_to edit_user_registration_path, class: "tabs--item is-active" do %>
-    Account
-  <% end %>
-  <%= link_to edit_user_profile_path, class: "tabs--item" do %>
-    Edit
-  <% end %>
-  <%= link_to subscriptions_path, class: "tabs--item" do %>
-    Subscriptions
-  <% end %>
-</div>
+<%
+  title = 'Edit Account Settings'
+%>
 
-<h1>Edit Account Settings</h1>
+<% content_for :title, title %>
+
+<%= render 'users/tabs', user: current_user, active_tab: 'account' %>
+
+<h1><%= title %></h1>
+
+<%= link_to two_factor_status_path, class: 'button is-outlined' do %>
+  Two-factor authentication &raquo;
+<% end %>
+
+<% sso = current_user.sso_profile.present? %>
+<% if sso %>
+  <% if devise_sign_in_enabled? && SiteSetting['AllowSsoDisconnect'] %>
+    <%= link_to user_disconnect_sso_path, class: 'button is-outlined is-danger' do %>
+      Disconnect Single Sign-On &raquo;
+    <% end %>
+  <% end %>
+
+  <div class="notice is-warning">
+    You sign in through a Single Sign-On provider.
+    Because of that, you cannot change your email address or password here.
+    Please contact your system administrator if you would like to change these.
+  </div>
+<% end %>
 
 <%= form_for(resource, as: resource_name, url: registration_path(resource_name), html: { method: :put }) do |f| %>
   <%= render "devise/shared/error_messages", resource: resource %>
 
   <div class="form-group">
     <%= f.label :email, class: "form-element" %>
-    <%= f.email_field :email, class: 'form-element', autofocus: true, autocomplete: "email" %>
+    <%= f.email_field :email, class: 'form-element', autofocus: true, autocomplete: "email", disabled: sso %>
   </div>
 
   <% if devise_mapping.confirmable? && resource.pending_reconfirmation? %>
@@ -28,32 +40,47 @@
   <% end %>
 
   <div class="form-group">
-    <%= f.label :username, class: "form-element" %>
-    <%= f.text_field :username, class: 'form-element', autocomplete: 'off' %>
+    <%= f.label :current_password, class: "form-element" %>
+    <div class="form-caption">We need your current password to confirm your changes.</div>
+    <%= f.password_field :current_password, class: 'form-element', autocomplete: "current-password", required: true,
+                         disabled: sso %>
   </div>
 
   <div class="form-group">
-    <%= f.label :password, class: "form-element" %>
+    <%= f.label :password, "New password", class: "form-element" %>
     <div class="form-caption">
       Leave blank if you don't want to change it.
       <% if @minimum_password_length %>
         <em>(<%= @minimum_password_length %> characters minimum)</em>
       <% end %>
     </div>
-    <%= f.password_field :password, class: 'form-element', autocomplete: "new-password" %>
-    
+    <%= f.password_field :password, class: 'form-element', autocomplete: "new-password", disabled: sso %>
   </div>
 
   <div class="form-group">
-    <%= f.label :password_confirmation, class: "form-element" %>
-    <%= f.password_field :password_confirmation, class: 'form-element', autocomplete: "new-password" %>
+    <%= f.label :password_confirmation, "Confirm new password", class: "form-element" %>
+    <%= f.password_field :password_confirmation, class: 'form-element', autocomplete: "new-password", disabled: sso %>
   </div>
 
-  <div class="form-group">
-    <%= f.label :current_password, class: "form-element" %>
-    <div class="form-caption">We need your current password to confirm your changes.</div>
-    <%= f.password_field :current_password, class: 'form-element', autocomplete: "current-password" %>
-  </div>
-
-  <%= f.submit "Update", class: 'button is-filled is-very-large' %>
+  <%= f.submit "Update", class: 'button is-filled is-very-large', disabled: sso %>
 <% end %><br/>
+
+<% if current_user.at_least_moderator? %>
+  <%= link_to 'javascript:void(0)', class: 'button is-outlined is-danger', disabled: true do %>
+    Delete my account &raquo;
+  <% end %>
+  <p class="has-color-red has-font-size-caption">
+    Moderators and admins cannot be self-deleted. Contact support if you wish to delete your account.
+  </p>
+<% elsif current_user.enabled_2fa %>
+  <%= link_to 'javascript:void(8)', class: 'button is-outlined is-danger', disabled: true do %>
+    Delete my account &raquo;
+  <% end %>
+  <p class="has-color-red has-font-size-caption">
+    Your account uses two-factor authentication (2FA). In order to delete your account, you must first disable 2FA.
+  </p>
+<% else %>
+  <%= link_to delete_account_path, class: 'button is-outlined is-danger' do %>
+    Delete my account &raquo;
+  <% end %>
+<% end %>

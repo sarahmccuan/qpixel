@@ -1,0 +1,39 @@
+<details>
+  <summary class="error-report-summary">
+    <span class="details">
+      <strong><%= report.klass %></strong><br/>
+      <span class="has-font-size-caption has-color-tertiary-600"><%= t('g.at') %> <%= report.request_uri %></span>
+    </span>
+    <span class="has-padding-right-2 has-float-right has-color-tertiary-600">
+      <%= report.created_at.iso8601 %>
+    </span>
+  </summary>
+
+  <p class="raw-markdown has-font-weight-bold has-color-red-700">
+    <%= report.klass %>: <%= report.message %>
+  </p>
+
+  <p>
+    <strong><%= t('g.community').capitalize %>:</strong>
+    <%= report.community&.name || '(nil)' %>
+    (<%= report.community_id || 'nil' %>)<br/>
+
+    <strong><%= t('g.user').capitalize %>:</strong>
+    <%= rtl_safe_username(report.user) || '(anon)' %>
+    (<%= report.user_id || 'nil' %>)<br/>
+
+    <strong>UUID:</strong>
+    <span class="raw-markdown"><%= report.uuid %></span>
+
+    <% if report.version? %>
+      <br/>
+      <strong><%= t('g.version').capitalize %>:</strong>
+      <%= link_to report.version, query_url(version: report.version) %>
+    <% end %>
+  </p>
+
+  <% backtrace_lines = report.backtrace.split("\n").select { |l| l.include? Rails.root.to_s } %>
+  <% if backtrace_lines.any? %>
+    <pre class="error-trace raw-markdown"><%= backtrace_lines.join("\n") %></pre>
+  <% end %>
+</details>

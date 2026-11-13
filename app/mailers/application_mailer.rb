@@ -1,5 +1,4 @@
 class ApplicationMailer < ActionMailer::Base
-  default from: 'writing@codidact.com'
+  default from: -> { "#{SiteSetting['NoReplySenderName']} <#{SiteSetting['NoReplySenderEmail']}>" }
   layout 'mailer'
 end
-

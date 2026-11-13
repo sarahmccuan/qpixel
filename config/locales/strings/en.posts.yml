@@ -1,0 +1,109 @@
+en:
+  posts:
+    # TODO: align the rest with other local strings' structure
+    success:
+      feature: >
+        The post has been featured.
+        It may take some time for the changes to take effect due to caching.
+      unfeature: >
+        The post has been unfeatured.
+        It may take some time for the changes to take effect due to caching.
+    errors:
+      feature_generic: >
+        Failed to feature the post.
+      feature_conflict: >
+        The post is already featured.
+      unfeature_generic: >
+        Failed to unfeature the post.
+    tools:
+      feature: Feature post
+      feature_action: Feature
+      feature_blurb: >
+        You can feature this post by linking it in the sidebar.
+        You can edit the link options later in the moderator tools.
+      unfeature: Unfeature post
+      unfeature_action: Unfeature
+      unfeature_blurb: >
+        This post will no longer be linked in the sidebar.
+        You can always feature it again in the moderator tools.
+    #alert/notice
+    create_requires_post: >
+      Can't create a post without content. Please try again later or contact us.
+    category_low_trust_level: >
+      You don't have a high enough trust level to post in the :name category.
+    type_requires_category: >
+      You can't create a :type without a category.
+    type_requires_parent: >
+      You can't create a :type without a parent post.
+    spam_blocked: >
+      Couldn't create your post. Try again later.
+    not_public_editable: >
+      This type of post can only be edited by its author and the site moderators.
+    cant_close_post: >
+      Can't close this question right now. Try again later.
+    already_opened: >
+      Cannot reopen an open post.
+    cant_reopen_post: >
+      Can't reopen this post right now. Try again later.
+    no_edit_changes: >
+      No changes were saved because you didn't edit the post.
+    cant_delete_post: >
+      Can't delete this post right now. Try again later.
+    already_deleted: >
+      Can't delete a deleted post.
+    cant_delete_responded: >
+      This post cannot be deleted because it has responses.
+    cant_delete_community: >
+      This post cannot be deleted because it is owned by the community (freely editable).
+    cant_restore_post: >
+      Can't restore this post right now. Try again later.
+    cant_restore_undeleted: >
+      Can't restore a post that isn't deleted.
+    cant_restore_deleted_by_moderator: >
+      You cannot restore this post deleted by a moderator.
+    cant_restore_deleted_by_staff: >
+      You cannot restore this post deleted by staff.
+    cant_change_category: >
+      You don't have permission to make that change.
+    type_not_included: >
+      This post type is not allowed in the :type category.
+    #_form.html.erb
+    body_label: >
+      Body
+    post_title_label: >
+      Summarize your post with a title:
+    tags_label: >
+      Tags (at least one):
+    required_tags_caption: >
+      Requires at least one of
+    edit_comment_label: >
+      Edit Comment
+    redact_label: >
+      Redact
+    redact_explanation: >
+      Redact original content by hiding the previous versions from history? Use only for private information such as passwords or personally identifiable information.
+    licence_label: >
+      License
+    unsaved_changes_confirmation: >
+      Any unsaved changes will be lost. Are you sure?
+    category_label: >
+      Category
+    category_caption: >
+      Name a category under which to display this post in the help center.
+    order_label: >
+      Order
+    order_caption: >
+      Control where this post appears in the list of help articles. Higher values appear later in the list.
+    slug_label: >
+      URL slug
+    slug_caption: >
+      In a URL of "https://yoursite.codidact.com/help/topic", the "topic" is the slug.
+    responding_to: >
+      Responding to:
+    no_block_mathjax_title: >
+      Title cannot contain block-level MathJax.
+
+    post_closed_guidance: >
+      Your post has been closed and is not accepting new answers. You should read the reason for closure listed below and check for any comments left by others about
+      why your post has been closed and what it needs, then edit your post to improve it to a state where it can be reopened. If you need help, reply to comments to
+      clarify any requests, or join us in chat for more guidance.

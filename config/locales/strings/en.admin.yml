@@ -1,0 +1,47 @@
+en:
+  admin:
+    dashboard:
+      title: 'Admin Dashboard'
+      blurb: >
+        This page serves as a repository of links to the various tools you have access to as an administrative user. While
+        you use these, remember that the data in them is usually admin- or moderator-only, and should likely not be shared
+        with anyone outside of those teams.
+    email_being_sent: 'Your email is being sent.'
+    email_moderators_blurb: >
+      This tool allows you to send to the moderators' email distribution list, which will reach any current moderator
+      who is subscribed to it. Use sparingly and non-spammily. Your email will be sent in both HTML (formatted)
+      and plain text (unformatted) forms, so format in a way that will be legible when Markdown is removed.
+    email_all_blurb: >
+      This tool sends email to ALL registered users with a valid email address. Use very very rarely, usually only for
+      organisation-wide changes like privacy policy or TOS changes. Format in a way that will be legible when Markdown
+      is removed.
+    error_search_uuid: 'Search for an error UUID'
+    error_search_version: 'Errors from version (commit)'
+    privileges_blurb: >
+      Here you can define the reputation required to gain each available privilege. Click on a value to edit it.
+    email_query_blurb: >
+      This tool allows you to query for a user by their email address. If a user is found, you will be shown a list of
+      their profiles on communities on which you are an admin.
+    tools:
+      abilities: 'Abilities'
+      admin_email_query: 'User Lookup by Email'
+      audit_logs: 'Audit Log'
+      categories: 'Categories'
+      close_reasons: 'Close Reasons'
+      email_moderators: 'Email Moderators'
+      email_all: 'Email All Users'
+      error_reports: 'Error Reports'
+      email_query: 'User Lookup by Email'
+      g_site_settings: 'Global Site Settings'
+      g_tag_sets: 'Global Tag Sets'
+      licenses: 'Licenses'
+      new_category: 'Create Category'
+      new_site: 'New Site'
+      post_types: 'Post Types'
+      privileges: 'Privileges'
+      site_settings: 'Site Settings'
+      tag_sets: 'Tag Sets'
+    user_fed_stat: 'User fed to STAT.'
+    errors:
+      email_query_not_found:
+        No user found with that email address.

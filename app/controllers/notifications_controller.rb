@@ -1,65 +1,100 @@
 # Provides web and API actions relating to user notifications.
 class NotificationsController < ApplicationController
+  include CommentsHelper
+
   before_action :authenticate_user!, only: [:index]
+  before_action :set_notification, only: [:read]
+  before_action :set_sorting, only: [:index]
 
   def index
-    @notifications = Notification.where(user: current_user).paginate(page: params[:page], per_page: 100)
+    @notifications = Notification.unscoped
+                                 .where(user: current_user)
+                                 .order(:is_read => :asc, @sort_type => @sort_order)
+                                 .paginate(page: params[:page], per_page: 100)
                                  .order(Arel.sql('is_read ASC, created_at DESC'))
-    respond_to do |format|
-      format.html { render :index }
-      format.json { render json: @notifications }
+
+    if params[:status].present?
+      @notifications = @notifications.where(is_read: params[:status] == 'read')
+    end
+
+    if stale?(@notifications)
+      respond_to do |format|
+        format.html { render :index, layout: 'without_sidebar' }
+        format.json do
+          render json: (@notifications.to_a.map do |notif|
+            notif.as_json(except: [:content])
+                 .merge(content: helpers.render_pings_text(notif.content),
+                        community_name: notif.community_name)
+          end)
+        end
+      end
     end
   end
 
   def read
-    @notification = Notification.find params[:id]
-
     unless @notification.user == current_user
       respond_to do |format|
-        format.html { render template: 'errors/forbidden', status: 401 }
-        format.json { render json: nil, status: 401 }
+        format.html { render template: 'errors/forbidden', status: :forbidden }
+        format.json { render json: nil, status: :forbidden }
       end
       return
     end
 
-    @notification.is_read = true
+    @notification.is_read = !@notification.is_read
     if @notification.save
       respond_to do |format|
-        format.html {
-          flash[:notice] = "Marked as read."
+        format.html do
+          flash[:notice] = 'Marked as read.'
           render :index
-        }
-        format.json { render json: {status: 'success'} }
+        end
+        format.json { render json: { status: 'success', notification: @notification }, methods: :community_name }
       end
     else
       respond_to do |format|
-        format.html {
-          flash[:error] = "Failed to mark read."
+        format.html do
+          flash[:error] = 'Failed to mark read.'
           render :index
-        }
-        format.json { render json: {status: 'failed'} }
+        end
+        format.json { render json: { status: 'failed' } }
       end
     end
   end
 
   def read_all
-    @notifications = Notification.where(user: current_user, is_read: false)
+    @notifications = Notification.unscoped.where(user: current_user, is_read: false)
     if @notifications.update_all(is_read: true)
       respond_to do |format|
-        format.html {
-          flash[:notice] = "Marked all as read."
+        format.html do
+          flash[:notice] = 'Marked all as read.'
           render :index
-        }
-        format.json { render json: {status: 'success'} }
+        end
+        format.json { render json: { status: 'success' } }
       end
     else
       respond_to do |format|
-        format.html {
-          flash[:error] = "Failed to mark all read."
+        format.html do
+          flash[:error] = 'Failed to mark all read.'
           render :index
-        }
-        format.json { render json: {status: 'failed'} }
+        end
+        format.json { render json: { status: 'failed' } }
       end
     end
+  end
+
+  private
+
+  def set_notification
+    @notification = Notification.unscoped.find(params[:id])
+  end
+
+  def set_sorting
+    sort_orders = { asc: :asc, desc: :desc }
+    sort_types = { age: :created_at }
+
+    @default_sort_type = :age
+    @default_sort_order = :desc
+
+    @sort_order = sort_orders[params[:order]&.to_sym] || sort_orders[@default_sort_order]
+    @sort_type = sort_types[params[:sort]&.to_sym] || sort_types[@default_sort_type]
   end
 end

@@ -1,5 +1,14 @@
 @import 'variables';
 
+select.form-element {
+  display: block;
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 1em;
+}
+
 .form-group-horizontal {
   display: flex;
   flex-direction: column;
@@ -8,14 +17,6 @@
 
   @media screen and (min-width: $screen-md) {
     flex-direction: row;
-
-    & > :first-child {
-      margin: 0 0.5em 0 0 !important;
-    }
-
-    & > :last-child {
-      margin: 0 0 0 0.5em !important;
-    }
   }
 
   & > .form-group {
@@ -30,6 +31,7 @@
   & > .actions {
     display: flex;
     align-items: flex-end;
+    margin: 4px 0;
   }
 }
 
@@ -39,7 +41,44 @@
   }
 }
 
+.select2 {
+  margin: 0.4em 0;
+}
+
 .select2-container {
   width: 100% !important;
-  margin: 0.4em 0;
+}
+
+.select2-results__option {
+  min-height: 2em;
+}
+
+@for $i from 1 through 25 {
+  textarea.has-rows[rows="#{$i}"] {
+    min-height: (1.2em * $i) + 1.2em;
+  }
+}
+
+.check-group-horizontal {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+
+  label {
+    padding: 0;
+    margin: 0;
+  }
+
+  input[type="checkbox"] {
+    padding: 0;
+    margin: 0 0 0 0.5em;
+  }
+}
+
+.check-group__right {
+  justify-content: flex-end;
+}
+
+.checkbox__large {
+  zoom: 1.5;
 }

@@ -1,5 +1,25 @@
 @import 'variables';
 
+@mixin shadow {
+  box-shadow: 0.1em 0.1em 0.2em $muted-graphic;
+}
+
+.flex {
+  display: flex;
+
+  &.items-center {
+    align-items: center;
+  }
+}
+
+.gap-sm {
+  gap: 0.5em;
+}
+
+.gap-md {
+  gap: 1em;
+}
+
 .flex-row-always {
   display: flex;
   flex-direction: row;
@@ -16,9 +36,19 @@
 .flex-row {
   display: flex;
   flex-direction: column;
+  flex-wrap: wrap;
+
+  &.items-end {
+    align-items: end;
+  }
+
+  &.space-between {
+    justify-content: space-between;
+  }
 
   @media screen and (min-width: $screen-md) {
     flex-direction: row;
+
     & > * {
       margin: 0 0.5em !important;
     }
@@ -41,12 +71,21 @@
   }
 }
 
+.ai-c {
+  align-items: center;
+}
+
+.ai-fe {
+  align-items: flex-end;
+}
+
 .jc-sb {
   justify-content: space-between;
 }
 
 .raw-markdown {
   font-family: 'Roboto Mono', monospace;
+  white-space: pre-wrap;
 }
 
 .table-borderless,
@@ -63,24 +102,297 @@ pre.unformatted {
   padding: unset;
   margin: unset;
   font-size: unset;
-  line-height: unset;
   color: unset;
   background: unset;
   border: unset;
+  overflow-x: unset;
+  overflow-y: unset;
+  max-height: unset;
+  white-space: pre-wrap;
+}
+
+pre.pre-wrap {
+  max-width: 40em !important;
+  width: 40em !important;
+  overflow-x: scroll;
+  overflow-wrap: break-word;
+  white-space: pre-wrap !important;
+}
+
+.copy-button {
+  display: none;
+  position: absolute;
+  right: 0;
+
+  &.is-small {
+    top: -1px;
+  }
+}
+
+div:hover > .copy-button {
+  display: block;
 }
 
 .stat-panel {
   flex: 1;
+  border: 1px solid $muted-graphic;
+  border-radius: 4px;
+  margin: 0.5em;
+  padding: 0.5em;
+  @include shadow;
 }
 
 .stat-panel-heading {
-  margin-top: 0;
+  margin: 0;
   font-variant: small-caps;
   color: $muted-text;
   font-weight: bold;
   letter-spacing: 0.5px;
 }
 
+.stat-panel-caption {
+  display: block;
+  font-size: 0.8em;
+  color: $muted-text;
+}
+
 .stat-value {
+  margin-top: 0.2em;
   font-size: 2.0em;
+}
+
+.badge.is-tag.is-outlined {
+  border: 1px solid #001db1;
+
+  &.is-red {
+    border: 1px solid #b3001e;
+  }
+}
+
+.badge.is-tag.is-small {
+  padding: 2px 4px;
+  line-height: 1;
+}
+
+.badge.is-tag.is-large {
+  font-size: 22px;
+}
+
+.error-shake {
+  animation: shake 0.5s;
+}
+
+@keyframes shake {
+  0% {
+    transform: translate(-5px);
+  }
+
+  10% {
+    transform: translate(5px);
+  }
+
+  20% {
+    transform: translate(-5px);
+  }
+
+  30% {
+    transform: translate(5px);
+  }
+
+  40% {
+    transform: translate(-5px);
+  }
+
+  50% {
+    transform: translate(5px);
+  }
+
+  60% {
+    transform: translate(-5px);
+  }
+
+  70% {
+    transform: translate(5px);
+  }
+
+  80% {
+    transform: translate(-5px);
+  }
+
+  90% {
+    transform: translate(5px);
+  }
+
+  100% {
+    transform: translate(-5px);
+  }
+}
+
+.diff {
+  .diff-section {
+
+    .diff-old,
+    .diff-new {
+      overflow: scroll;
+    }
+  }
+
+  .raw-markdown {
+    white-space: unset;
+  }
+
+  ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+
+    li {
+      min-height: 20px;
+      white-space: pre-wrap;
+
+      del,
+      ins {
+        text-decoration: none;
+        overflow-wrap: break-word;
+      }
+
+      del > strong {
+        text-decoration: line-through;
+      }
+
+      ins > strong {
+        text-decoration: underline;
+      }
+    }
+  }
+}
+
+.__mobile-only,
+a.__mobile-only:any-link {
+  @media screen and (min-width: $screen-sm) {
+    display: none;
+  }
+}
+
+.__desktop-only,
+a.__desktop-only:any-link {
+  @media screen and (max-width: $screen-sm) {
+    display: none;
+  }
+}
+
+.footnote-ref a::before {
+  content: '';
+}
+
+.footnote-ref a::after {
+  content: '';
+}
+
+details {
+  border: 1px solid white;
+
+  &[open] {
+    border: 1px solid $muted-graphic;
+    border-radius: 4px;
+    margin-bottom: 0.2em;
+  }
+
+  & > summary {
+    display: flex;
+    flex-direction: column;
+
+    @media screen and (min-width: $screen-md) {
+      flex-direction: row;
+      align-items: center;
+    }
+
+    & > .subheading {
+      margin-top: 0.3em;
+      font-size: 0.8em;
+      font-weight: normal;
+      color: $muted-text;
+
+      @media screen and (min-width: $screen-md) {
+        margin-top: unset;
+        margin-left: 0.4em;
+      }
+    }
+  }
+}
+
+.item-list .item-list--item .item-list--number-value {
+  height: unset;
+}
+
+.item-list--item .item-list--number-value .meter {
+  margin-top: 0.5em !important;
+}
+
+.button.is-warning.is-outlined {
+  border: 1px #b19002 !important;
+}
+
+span.spoiler {
+  display: block;
+  margin: 4px 0;
+  padding: 8px 12px;
+  background-color: lighten($primary, 30%);
+  border: 2px solid lighten($primary, 15%);
+  border-radius: 12px 12px 12px 0;
+
+  span {
+    transition: color 0.2s ease;
+    visibility: hidden;
+    color: lighten($primary, 30%);
+  }
+
+  &:hover span,
+  &:active span {
+    transition: all 0.2s ease;
+    visibility: visible;
+    color: $key;
+  }
+}
+
+.clearfix {
+  overflow: hidden;
+}
+
+.overflow-ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.transparent {
+  opacity: 0;
+}
+
+.wrap-anywhere {
+  overflow-wrap: anywhere;
+}
+
+.wrap-word {
+  overflow-wrap: break-word;
+}
+
+.nowrap {
+  white-space: nowrap;
+}
+
+.fit-content {
+  min-width: fit-content;
+}
+
+@each $side in $sides {
+  .border-#{$side}-none {
+    border-#{$side}: none;
+  }
+}
+
+@each $align in $text-aligns {
+  .text-#{$align} {
+    text-align: $align;
+  }
 }

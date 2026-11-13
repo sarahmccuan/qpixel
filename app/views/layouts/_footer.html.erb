@@ -1,0 +1,27 @@
+<footer class="footer is-inverted">
+  <div class="footer--container container">
+    <div class="grid">
+      <div class="grid--cell is-6 is-12-md is-12-sm">
+        <ul>
+          <li><%= link_to 'Our Communities', '/dashboard' %></li>
+          <li><%= link_to 'About Us', '/policy/network-faq' %></li>
+          <li><%= link_to 'Privacy & Safety Center', safety_center_url %></li>
+          <li><%= link_to 'Report harmful content', new_complaint_path %></li>
+          <li><%= link_to 'Data dumps', data_dumps_path %></li>
+        </ul>
+      </div>
+      <div class="grid--cell is-6 is-12-md is-12-sm">
+        <ul>
+          <li><%= link_to 'Terms of Service', '/policy/tos' %></li>
+          <li><%= link_to 'Privacy Policy', '/policy/privacy-policy' %></li>
+          <li><%= link_to 'Code of Conduct', '/policy/code-of-conduct' %></li>
+        </ul>
+      </div>
+    </div>
+    <% sha, date = current_commit %>
+    <p>Powered by <%= link_to 'Codidact', 'https://codidact.org/' %>. <% if sha&.present? %>Version <%= 
+      link_to sha[0..7], "https://github.com/codidact/qpixel/commit/#{sha}" 
+    %> (<%= date.to_time.utc.strftime('%F %TZ') %>)<% end %>
+    </p>
+  </div>
+</footer>

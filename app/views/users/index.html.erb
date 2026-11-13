@@ -7,8 +7,9 @@
     <div class="form-group">
       <%= label_tag :search, "Search", class: "form-element" %>
       <%= text_field_tag :search, params[:search], class: 'form-element' %>
+      <%= hidden_field_tag :sort, params[:sort] || @sort_param  %>
     </div>
-    <div class="actions has-padding-bottom-1">
+    <div class="actions">
       <button type="submit" class="button is-filled is-medium"><i class="fas fa-search"></i><span class="sr-only">Search</span></button>
     </div>
   </div>
@@ -16,14 +17,21 @@
 
 <div class="button-list is-gutterless has-margin-bottom-4">
   <%= link_to 'Reputation', query_url(sort: 'reputation'),
-      class: "button is-muted is-outlined #{params[:sort] == 'reputation' || (params[:sort].nil? && params[:search].nil?) ? 'is-active' : ''}" %>
-  <%= link_to 'Age', query_url(sort: 'age'), class: "button is-muted is-outlined #{params[:sort] == 'age' ? 'is-active' : ''}" %>
+      class: "button is-muted is-outlined #{params[:sort] == 'reputation' || (params[:sort].nil? && params[:search].nil?) ? 'is-active' : ''}",
+      role: 'button', 'aria-label': 'Sort by reputation' %>
+  <%= link_to 'Age', query_url(sort: 'age'),
+              class: "button is-muted is-outlined #{params[:sort] == 'age' ? 'is-active' : ''}",
+              role: 'button', 'aria-label': 'Sort by age' %>
 </div>
 
-<div class="user-list">
-  <% @users.each do |user| %>
-    <%= render 'user', user: user %>
-  <% end %>
-</div>
+<% if @users.count == 0 %>
+  <p><%= I18n.t('search.no_users') %></p>
+<% else %>
+  <div class="user-list">
+    <% @users.each do |user| %>
+      <%= render 'user', user: user %>
+    <% end %>
+  </div>
+<% end %>
 
 <%= will_paginate @users, renderer: BootstrapPagination::Rails %>

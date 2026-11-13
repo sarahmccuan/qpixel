@@ -1,0 +1,29 @@
+<%
+  title = t('admin.tools.email_all')
+  blurb = t('admin.email_all_blurb')
+%>
+
+<% content_for :title, title %>
+
+<%= render 'posts/markdown_script' %>
+
+<%= render 'shared/notice', content: 'Please be careful, as this tool sends a lot of emails.',
+                            icon: 'exclamation-triangle',
+                            type: 'danger' %>
+
+<h1><%= title %></h1>
+<p><%= blurb %></p>
+
+<%= form_with url: send_all_email_path do |f| %>
+  <div class="form-group">
+    <%= f.label :subject, t('g.subject').capitalize, class: 'form-element' %>
+    <%= f.text_field :subject,  class: 'form-element', required: true %>
+  </div>
+
+  <%= render 'shared/body_field', f: f, field_name: :body_markdown, field_label: t('g.body').capitalize, post: nil %>
+
+  <div class="post-preview"></div>
+
+  <%= f.submit t('g.send').capitalize, class: 'button is-filled',
+               onclick: "return confirm('Are you sure you want to send this email to all users?')" %>
+<% end %>

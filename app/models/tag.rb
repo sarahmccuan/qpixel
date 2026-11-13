@@ -2,5 +2,166 @@ class Tag < ApplicationRecord
   include CommunityRelated
 
   has_and_belongs_to_many :posts
+  has_many :children, class_name: 'Tag', foreign_key: :parent_id
+  has_many :children_with_paths, class_name: 'TagWithPath', foreign_key: :parent_id
+  has_many :post_history_tags
+  has_many :tag_synonyms, dependent: :destroy
+  accepts_nested_attributes_for :tag_synonyms, allow_destroy: true
   belongs_to :tag_set
+  belongs_to :parent, class_name: 'Tag', optional: true
+
+  validates :excerpt, length: { maximum: 600 }, allow_blank: true
+  validates :wiki_markdown, length: { maximum: 30_000 }, allow_blank: true
+  validates :name, presence: {
+    message: I18n.t('tags.validation.errors.no_blank_name')
+  }
+  validates :name, format: {
+    with: /\A[^\s]+\Z/, # https://regex101.com/r/7BxgIn/1
+    message: I18n.t('tags.validation.errors.no_spaces_in_name')
+  }
+  validate :parent_not_self
+  validate :parent_not_own_child
+  validate :synonym_unique
+  validates :name, uniqueness: {
+    scope: [:tag_set_id],
+    case_sensitive: false,
+    message: I18n.t('tags.validation.errors.no_duplicate_names')
+  }
+
+  # lifecycle
+  after_save :clear_upwards_chain_children_cache
+  after_destroy :clear_upwards_chain_children_cache
+
+  # scopes
+  scope :list_includes, -> { includes(:tag_synonyms) }
+
+  # Fuzzy-searches tags by name, excerpt, and synonym name
+  # @param term [String] search term
+  # @return [ActiveRecord::Relation<Tag>]
+  def self.search(term)
+    value = "%#{sanitize_sql_like(term.strip)}%"
+
+    # Query to search on tags, the name is used for sorting.
+    q1 = where('tags.name LIKE ?', value)
+         .or(where('tags.excerpt LIKE ?', value))
+         .select('tags.*')
+
+    # Query to search on synonyms, the synonym name is used for sorting.
+    q2 = joins(:tag_synonyms)
+         .where('tag_synonyms.name LIKE ?', value)
+         .select('tags.*')
+
+    # Select from the union of the above queries, select only the tag columns such that we can distinct them
+    from(Arel.sql("((#{q1.to_sql}) UNION (#{q2.to_sql})) tags"))
+      .order(Arel.sql(sanitize_sql_array(['name LIKE ? DESC, char_length(name), name', value])))
+      .select(Tag.column_names.map { |c| "tags.#{c}" })
+      .distinct
+  end
+
+  ##
+  # Find or create a tag within a given tag set, considering synonyms. If a synonym is given as +name+ then the primary
+  # tag for it is returned instead.
+  # @param name [String] A tag name to find or create.
+  # @param tag_set [TagSet] The tag set within which to search for or create the tag.
+  # @return [Array(Tag, String)] The found or created tag, and the final name used. If a synonymized name was given as
+  #   +name+ then this will be the primary tag name.
+  #
+  # @example +name+ does not yet exist: a new Tag is created
+  #   Tag.find_or_create_synonymized name: 'new-tag', tag_set: ...
+  #   # => [Tag, 'new-tag']
+  #
+  # @example +name+ already exists: the existing Tag is returned
+  #   Tag.find_or_create_synonymized name: 'existing-tag', tag_set: ...
+  #   # => [Tag, 'existing-tag']
+  #
+  # @example +name+ is a synonym of 'other-tag': the Tag for 'other-tag' is returned
+  #   Tag.find_or_create_synonymized name: 'synonym', tag_set: ...
+  #   # => [Tag, 'other-tag']
+  def self.find_or_create_synonymized(name:, tag_set:)
+    existing = Tag.find_by(name: name, tag_set: tag_set)
+    if existing.nil?
+      synonyms = TagSynonym.joins(:tag).where(name: name, tags: { tag_set: tag_set })
+      synonymized_name = synonyms.exists? ? synonyms.first.tag.name : name
+      [Tag.find_or_create_by(name: synonymized_name, tag_set: tag_set), synonymized_name]
+    else
+      [existing, name]
+    end
+  end
+
+  # Calls a given block on each tag in a chain starting from a tag with a given id
+  # @param tag_id [String, nil] tag to start traversing from
+  # @yieldparam tag [Tag] chain element being traversed
+  def self.each_upwards(tag_id, &block)
+    unless block_given?
+      raise ArgumentError, "Can't traverse an upwards chain without a block given"
+    end
+
+    while tag_id.present?
+      tag = Tag.find_by(id: tag_id)
+
+      block.call(tag) if tag
+
+      tag_id = tag&.parent_id
+    end
+  end
+
+  def all_children
+    Rails.cache.fetch "tags/#{id}/all_children" do
+      query = File.read(Rails.root.join('db/scripts/tag_children.sql'))
+      query = query.gsub('$ParentId', id.to_s)
+      ActiveRecord::Base.connection.execute(query).to_a.map(&:first)
+    end
+  end
+
+  def parent_chain
+    Enumerator.new do |enum|
+      parent_group = group
+      until parent_group.nil?
+        enum.yield parent_group
+        parent_group = parent_group.group
+      end
+    end
+  end
+
+  def clear_upwards_chain_children_cache
+    return if parent_id_previously_was == parent_id && !destroyed?
+
+    if parent_id_previously_was != parent_id
+      Tag.each_upwards(parent_id_previously_was) do |tag|
+        Rails.cache.delete "tags/#{tag.id}/all_children"
+      end
+    end
+
+    if destroyed?
+      Rails.cache.delete "tags/#{id}/all_children"
+    end
+
+    Tag.each_upwards(parent_id) do |tag|
+      Rails.cache.delete "tags/#{tag.id}/all_children"
+    end
+  end
+
+  private
+
+  def parent_not_self
+    return if parent_id.blank?
+
+    if parent_id == id
+      errors.add(:base, 'A tag cannot be its own parent.')
+    end
+  end
+
+  def parent_not_own_child
+    return if parent_id.blank?
+
+    if all_children.include? parent_id
+      errors.add(:base, "The #{parent.name} tag is already a child of this tag.")
+    end
+  end
+
+  def synonym_unique
+    if TagSynonym.joins(:tag).where(tags: { community_id: community_id }).exists?(name: name)
+      errors.add(:base, "A tag synonym with the name #{name} already exists.")
+    end
+  end
 end

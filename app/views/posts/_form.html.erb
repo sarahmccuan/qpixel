@@ -1,0 +1,279 @@
+<%#
+   "Post create/edit form covering all post types.
+
+    Variables:
+      post          : a Post instance to work on (either via .new or .find - doesn't matter if it has content or not)
+      submit_path   : the URL to submit the form to (must accept POST requests)
+      post_type     : a PostType instance describing the requested post type
+    ? category      : a Category instance, required if the post type has a category, indicating which category to post in
+    ? parent        : a Post instance containing the parent for this post (required if the post type has a parent)
+    ? inline_parent : optional, default  true: display an inline copy of the parent? (if present)
+    ? type_summary  : optional, default  true: display a summary of the requested post type?
+    ? edit_comment  : optional, default false: include a field for an edit comment?
+"%>
+
+<%
+  # defaults
+  category ||= defined?(category) ? category : nil
+  parent ||= defined?(parent) ? parent : nil
+  inline_parent ||= defined?(inline_parent) ? inline_parent : true
+  type_summary ||= defined?(type_summary) ? type_summary : true
+  edit_comment ||= defined?(edit_comment) ? edit_comment : false
+%>
+
+<% content_for :head do %>
+  <%= render 'posts/markdown_script' %>
+<% end %>
+
+<%= render 'posts/image_upload' %>
+
+<%= form_for post, url: submit_path, html: { class: 'has-margin-top-4' } do |f| %>
+  <% if post.id.nil? %>
+    <%= f.hidden_field :post_type_id, value: post.post_type_id || post_type.id %>
+  <% end %>
+
+  <% if post_type.has_category? && post.id.nil? %>
+    <%= f.hidden_field :category_id, value: post.category_id || category&.id || parent&.category_id %>
+  <% end %>
+
+  <% if post_type.has_parent? && post.id.nil? %>
+    <%= f.hidden_field :parent_id, value: post.parent_id || parent&.id %>
+  <% end %>
+
+  <% if type_summary %>
+    <p>
+      <span class="has-font-size-larger">
+          <%= t('posts.unsaved_changes_confirmation') %>
+        You're writing a new <strong><%= post_type.name %></strong>
+        <% if post_type.has_category? && category.present? %>
+          in <strong><%= category.name %></strong>
+        <% end %>
+      </span><br/>
+      <span class="has-font-size-smaller has-color-tertiary-700">
+        <%= post_type.description %>
+      </span>
+    </p>
+  <% end %>
+
+  <%= render 'shared/body_field',
+             f: f,
+             field_name: :body_markdown,
+             field_label: t('posts.body_label'),
+             post: post,
+             cur_length: post.body_markdown&.length,
+             min_length: min_body_length(category),
+             max_length: max_body_length(category) %>
+
+  <div class="rejected-elements notice is-warning hide">
+    <h3>Unsupported HTML detected</h3>
+    <p>The following HTML tags and attributes are unsupported and will be removed from the final post:</p>
+    <ul>
+    </ul>
+    <p>For a list of allowed HTML, see <a href="/help/advanced-formatting">this help article</a>.
+    If you meant to display the tags as code in the post, please enclose them in a code block.</p>
+  </div>
+  <div class="post-preview"></div>
+
+  <% unless post_type.has_parent? %>
+    <% value = {} %>
+    <% key = "saved_post.#{current_user&.id}.#{request.path}.title" %>
+    <% saved_at_key = "saved_post_at.#{current_user&.id}.#{request.path}" %>
+    <% saved_at = DateTime.parse(RequestContext.redis.get(saved_at_key) || '') rescue Date.new(2000, 1, 1) %>
+    <%
+      # Find the most recent between post-create, post-update, and draft-saved, and use the value corresponding to that.
+      value = [
+        [post.created_at || Date.new(2000, 1, 1), {}],
+        [post.updated_at || Date.new(2000, 1, 1), {}],
+        [saved_at || Date.new(2001, 1, 1), { value: RequestContext.redis.get(key) }]
+      ].max_by do |x|
+        x[0]
+      end[1]
+    %>
+    <div class="form-group">
+      <%= f.label :title, t('posts.post_title_label'), class: 'form-element' %>
+      <%= f.text_field :title,
+                        **({ class: 'form-element post_title' }).merge(value),
+                        data: { character_count: ".js-character-count-post-title" }
+      %>
+      <div class="clearfix">
+        <%= render 'shared/char_count', type: 'post-title',
+                                        cur: value[:value]&.length || post.title&.length,
+                                        max: max_title_length(category),
+                                        min: min_title_length(category, post_type) %>
+      </div>
+    </div>
+  <% end %>
+
+  <% if post_type.has_tags? && category.present? %>
+    <div class="form-group">
+      <%= f.label :tags_cache, t('posts.tags_label'), class: 'form-element' %>
+      <% required_tags = category.required_tags.to_a %>
+      <% unless required_tags.empty? %>
+        <span class="form-caption">
+          <%= t('posts.required_tags_caption') %>
+          <% required_tags.each do |tag| %>
+            <a class="badge is-tag is-filled js-add-required-tag" href="javascript:void(0)" data-tag-id="<%= tag.id %>"
+               data-tag-name="<%= tag.name %>">
+              <%= tag.name %>
+            </a>
+          <% end %>
+        </span>
+      <% end %>
+      <% tags = post.tags_cache %>
+      <% key = "saved_post.#{current_user&.id}.#{request.path}.tags" %>
+      <% saved_at_key = "saved_post_at.#{current_user&.id}.#{request.path}" %>
+      <% saved_at = DateTime.parse(RequestContext.redis.get(saved_at_key) || '') rescue Date.new(2000, 1, 1) %>
+      <%
+        # Find the most recent between post-create, post-update, and draft-saved, and use the value corresponding to that.
+        tags = [
+          [post.created_at || Date.new(2000, 1, 1), post.tags_cache],
+          [post.updated_at || Date.new(2000, 1, 1), post.tags_cache],
+          [saved_at || Date.new(2001, 1, 1), RequestContext.redis.smembers(key)]
+        ].max_by do |x|
+          x[0]
+        end[1]
+      %>
+      <%= f.select :tags_cache, options_for_select(
+                                  (tags || post.tags_cache).map { |t| [t, t] },
+                                  selected: tags || post.tags_cache),
+                   {},
+                   multiple: true,
+                   class: "form-element js-tag-select",
+                   data: { tag_set: category.tag_set_id } %>
+    </div>
+  <% end %>
+
+  <% if post_type.has_category? && category.present? && post_type.has_license? && !post.id.present? %>
+    <div class="form-group">
+      <%= f.label :license_id, t('posts.licence_label'), class: 'form-element' %>
+      <span class="form-caption">
+        <% site_default = License.site_default %>
+        <% category_default = category.license %>
+        <% user_default = user_preference('default_license', community: true) %>
+        <% if site_default.present? %>
+          community default: <a href="javascript:void(0)"
+                                class="js-license-autofill"
+                                data-license-id="<%= site_default.id %>">
+            <%= site_default.name %>
+          </a>
+        <% end %>
+        <% if site_default.present? && category_default.present? %>
+          &middot;
+        <% end %>
+        <% if category_default.present? %>
+          category default: <a href="javascript:void(0)"
+                               class="js-license-autofill"
+                               data-license-id="<%= category_default.id %>">
+            <%= category_default.name %>
+          </a>
+        <% end %>
+        <% if (site_default.present? || category_default.present?) && user_default.present? %>
+          &middot;
+        <% end %>
+        <% if user_default.present? %>
+          your default: <a href="javascript:void(0)" class="js-license-autofill" data-license-name="<%= user_default %>">
+            <%= user_default %>
+          </a>
+        <% end %>
+      </span>
+      <% license = post.license_id %>
+      <% key = "saved_post.#{current_user&.id}.#{request.path}.license" %>
+      <% saved_at_key = "saved_post_at.#{current_user&.id}.#{request.path}" %>
+      <% saved_at = DateTime.parse(RequestContext.redis.get(saved_at_key) || '') rescue Date.new(2000, 1, 1) %>
+      <%
+        # Find the most recent between post-create, post-update, and draft-saved, and use the value corresponding to that.
+        license = [
+          [post.created_at || Date.new(2000, 1, 1), post.license_id],
+          [post.updated_at || Date.new(2000, 1, 1), post.license_id],
+          [saved_at || Date.new(2001, 1, 1), RequestContext.redis.get(key)]
+        ].max_by do |x|
+          x[0]
+        end[1]
+      %>
+      <%= f.select :license_id, options_for_select(License.enabled.default_order(category, user_default)
+                                                          .map { |l| [l.name, l.id, { 'data-title': l.description }] },
+                                                   selected: license || post.license_id),
+                   { include_blank: user_default == 'No default (make me choose)' },
+                   class: 'form-element js-license-select' %>
+    </div>
+  <% end %>
+
+  <% if [HelpDoc.post_type_id, PolicyDoc.post_type_id].include? post_type.id %>
+    <div class="form-group">
+      <%= f.label :help_category, t('posts.category_label'), class: 'form-element' %>
+      <span class="form-caption">
+        <%= t('posts.category_caption') %>
+      </span>
+      <%= f.text_field :help_category, class: 'form-element' %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :help_ordering, t('posts.order_label'), class: 'form-element' %>
+      <span class="form-caption">
+        <%= t('posts.order_caption') %>
+      </span>
+      <%= f.number_field :help_ordering, class: 'form-element' %>
+    </div>
+
+    <div class="form-group">
+      <%= f.label :doc_slug, t('posts.slug_label'), class: 'form-element' %>
+      <span class="form-caption"><%= t('posts.slug_caption') %></span>
+      <%= f.text_field :doc_slug, class: 'form-element' %>
+    </div>
+
+    <% if edit_comment %>
+    <% if admin? %>
+      <div class="form-group">
+          <div class="checkbox-setting">
+            <div class="checkbox-setting--desc">
+              <%= label_tag :network_push, 'Push to network', class: 'form-element' %>
+              <span class="form-caption">Copy this edit to all communities (where the post has not been edited)?</span>
+            </div>
+            <div class="checkbox-setting--value">
+              <%= check_box_tag :network_push, true, false, class: 'form-checkbox-element' %>
+            </div>
+          </div>
+        </div>
+      <% end %>
+    <% end %>
+  <% end %>
+
+  <% if edit_comment %>
+    <% comment = '' %>
+    <% key = "saved_post.#{current_user&.id}.#{request.path}.comment" %>
+    <% saved_at_key = "saved_post_at.#{current_user&.id}.#{request.path}" %>
+    <% saved_at = DateTime.parse(RequestContext.redis.get(saved_at_key) || '') rescue Date.new(2000, 1, 1) %>
+    <%
+      # Find the most recent between post-create, post-update, and draft-saved, and use the value corresponding to that.
+      comment = [
+        [post.created_at || Date.new(2000, 1, 1), ''],
+        [post.updated_at || Date.new(2000, 1, 1), ''],
+        [saved_at || Date.new(2001, 1, 1), RequestContext.redis.get(key)]
+      ].max_by do |x|
+        x[0]
+      end[1]
+    %>
+    <hr/>
+    <%= render 'edit_comment', comment: comment,
+                               cur_length: comment&.length || 0,
+                               max_length: max_edit_comment_length
+    %>
+  <% end %>
+
+  <div class="actions">
+    <% if post_type.has_category && category.present? %>
+      <%= f.submit "Save Post in #{category.name}", class: 'button is-filled' %>
+    <% else %>
+      <%= f.submit 'Save Post', class: 'button is-filled' %>
+    <% end %>
+    <%= link_to t('g.cancel').titlecase, cancel_redirect_path(post),
+                class: 'button is-muted is-outlined is-danger js-cancel-edit',
+                data: { question_body: t('posts.unsaved_changes_confirmation') } %>
+  </div>
+<% end %>
+
+<% if inline_parent && defined?(parent) && parent.present? %>
+  <h2><%= t('posts.responding_to')%></h2>
+
+  <%= render 'posts/expanded', post: parent  %>
+<% end %>

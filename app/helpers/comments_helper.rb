@@ -1,2 +1,207 @@
+# Helpers related to comments.
+# rubocop:disable Style/OneClassPerFile
 module CommentsHelper
+  # Generates a comment thread title from its body
+  # @param body [String] coment thread body
+  # @return [String] generated title
+  def generate_thread_title(body)
+    body = strip_markdown(body, strip_leading_quote: true)
+
+    if body.length > 100
+      "#{body[0..100]}..."
+    else
+      body
+    end
+  end
+
+  ##
+  # Get a link to the specified comment, accounting for deleted comments.
+  # @param comment [Comment]
+  # @return [String]
+  def comment_link(comment)
+    if comment.deleted
+      comment_thread_url(comment.comment_thread_id, show_deleted_comments: 1, anchor: "comment-#{comment.id}",
+                         host: comment.community.host)
+    else
+      comment_thread_url(comment.comment_thread_id, anchor: "comment-#{comment.id}", host: comment.community.host)
+    end
+  end
+
+  # Gets a link to a given comment's user
+  # @param comment [Comment] comment to link the user for
+  # @return [String] comment user link
+  def comment_user_link(comment)
+    user_link(comment.user, { host: comment.community.host })
+  end
+
+  # Gets a list of pinged users for a given content
+  # @param content [String] content to get pinged users from
+  # @return [Hash{String => User}] list of pinged users
+  def pinged_users(content)
+    user_ids = content.scan(Comment::USER_PING_REG_EXP).map { |g| g[0].to_i }
+    User.where(id: user_ids).to_a.to_h { |u| [u.id, u] }
+  end
+
+  ##
+  # Converts all ping-strings (i.e. @#1234) into links.
+  # @param content [String] content to convert ping-strings for
+  # @param pingable [Array<Integer>, nil] A list of user IDs. Any user ID not present will be displayed as 'unpingable'.
+  # @return [ActiveSupport::SafeBuffer]
+  def render_pings(content, pingable: nil, host: nil)
+    users = pinged_users(content)
+
+    content.gsub(Comment::USER_PING_REG_EXP) do |ping|
+      user = users[Regexp.last_match(1).to_i]
+      if user.nil?
+        ping
+      else
+        was_pung = pingable.present? && pingable.include?(user.id)
+        classes = "ping #{'me' if user.same_as?(current_user)} #{'unpingable' unless was_pung}"
+        user_link(user, { host: host },
+                  class: classes,
+                  dir: 'ltr',
+                  title: was_pung ? '' : I18n.t('comments.warnings.unrelated_user_not_pinged'))
+      end
+    end.html_safe
+  end
+
+  # Converts all ping-strings (i.e. @#1234) in content into usernames for use in text-only contexts
+  # @param content [String] content to convert ping-strings for
+  # @return [String] processed content
+  def render_pings_text(content)
+    users = pinged_users(content)
+
+    content.gsub(Comment::USER_PING_REG_EXP) do |ping|
+      user = users[Regexp.last_match(1).to_i]
+      user.nil? ? ping : "@#{rtl_safe_username(user)}"
+    end
+  end
+
+  ##
+  # Process comment text and convert helper links (like [help] and [flags]) into real links.
+  # @param comment_text [String] The text of the comment to process.
+  # @param user [User] Specify a user whose pages to link to from user-related helpers.
+  # @return [String]
+  def render_comment_helpers(comment_text, user = current_user)
+    comment_text.gsub!(/\[(help( center)?)\]/, "<a href=\"#{help_center_url}\">\\1</a>")
+
+    unless user.nil?
+      comment_text.gsub!(/\[(votes?)\]/, "<a href=\"#{my_vote_summary_url}\">\\1</a>")
+      comment_text.gsub!(/\[(flags?)\]/, "<a href=\"#{flag_history_url(user)}\">\\1</a>")
+    end
+
+    comment_text.gsub!(/\[category:(.+?)\]/) do |match|
+      val = Regexp.last_match(1).gsub('&amp;', '&').downcase
+      cat = Category.by_lowercase_name(val)
+      if cat
+        "<a href=\"#{category_url(cat)}\">#{cat.name}</a>"
+      else
+        match
+      end
+    end
+
+    comment_text.gsub!(/\[category\#([0-9]+)\]/) do |match|
+      val = Regexp.last_match(1).to_i
+      cat = Category.by_id(val)
+      if cat
+        "<a href=\"#{category_url(cat)}\">#{cat.name}</a>"
+      else
+        match
+      end
+    end
+
+    comment_text
+  end
+
+  # Gets a standard comments error message for a given post
+  # @param post [Post] target post
+  # @return [String] error message
+  def comments_post_error_msg(post)
+    if post.locked?
+      I18n.t('comments.errors.disabled_on_locked_posts')
+    elsif post.deleted?
+      I18n.t('comments.errors.disabled_on_deleted_posts')
+    elsif post.comments_disabled
+      I18n.t('comments.errors.disabled_on_post_specific')
+    else
+      I18n.t('comments.errors.disabled_on_post_generic')
+    end.strip
+  end
+
+  # Gets a standard comments error message for a given thread
+  # @param thread [CommentThread] target thread
+  # @return [String] error message
+  def comments_thread_error_msg(thread)
+    if thread.locked?
+      I18n.t('comments.errors.disabled_on_locked_threads')
+    elsif thread.deleted
+      I18n.t('comments.errors.disabled_on_deleted_threads')
+    elsif thread.archived
+      I18n.t('comments.errors.disabled_on_archived_threads')
+    else
+      I18n.t('comments.errors.disabled_on_thread_generic')
+    end.strip
+  end
+
+  # Gets a standard comments rate limit error message for a given user & post
+  # @param user [User] user to get the comments count for
+  # @param post [Post] post to get the comments count for
+  def rate_limited_error_msg(user, post)
+    comments_count = user.recent_comments_count(post)
+    I18n.t('comments.errors.rate_limited', count: comments_count)
+  end
+
+  ##
+  # Is the specified user comment rate limited for the specified post?
+  # @param user [User] The user to check.
+  # @param post [Post] The post on which the user proposes to comment.
+  # @param create_audit_log [Boolean] Whether to create an AuditLog if the user is rate limited.
+  # @return [Array(Boolean, String)] 2-tuple: boolean indicating if the user is rate-limited, and a string containing
+  #   a rate limit message if the user is rate-limited.
+  def comment_rate_limited?(user, post, create_audit_log: true)
+    comments_count = user.recent_comments_count(post)
+    comments_limit = user.max_comments_per_day(post)
+    is_rate_limited = comments_count >= comments_limit
+
+    unless is_rate_limited && user.standard?
+      return [false, nil]
+    end
+
+    if user.new? && !user.owns_post_or_parent?(post) && comments_limit.zero?
+      message = I18n.t('comments.errors.new_user_rate_limited')
+
+      if create_audit_log
+        AuditLog.rate_limit_log(event_type: 'comment', related: post, user: user,
+                                comment: "'unrestricted' ability required to comment on non-owned posts")
+      end
+    else
+      message = rate_limited_error_msg(user, post)
+
+      if create_audit_log
+        AuditLog.rate_limit_log(event_type: 'comment', related: post, user: user, comment: "limit: #{comments_limit}")
+      end
+    end
+
+    [true, message]
+  end
+
+  # Get the maximum comment thread title length for the current community, with a maximum of 255.
+  # @return [Integer]
+  def maximum_thread_title_length
+    [SiteSetting['MaxThreadTitleLength'] || 255, 255].min
+  end
 end
+
+# HTML sanitizer for use with comments.
+class CommentScrubber < Rails::Html::PermitScrubber
+  def initialize
+    super
+    self.tags = %w[a b i em strong s strike del pre code p blockquote span sup sub br ul ol li]
+    self.attributes = %w[href title lang dir id class start]
+  end
+
+  def skip_node?(node)
+    node.text?
+  end
+end
+# rubocop:enable Style/OneClassPerFile

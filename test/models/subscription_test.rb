@@ -7,32 +7,91 @@ class SubscriptionTest < ActiveSupport::TestCase
     assert_community_related(Subscription)
   end
 
-  test "subscription to all should return some questions" do
+  test 'subscription to all should return some questions' do
     questions = subscriptions(:all).questions
-    assert_not_nil questions
-    assert questions.size > 0, 'No questions returned'
-    assert questions.size <= 100, 'Too many questions returned'
+
+    assert_questions_valid(questions)
   end
 
-  test "tag subscription should return only tag questions" do
+  test 'tag subscription should return only tag questions' do
     questions = subscriptions(:tag).questions
-    assert_not_nil questions
-    assert questions.size > 0, 'No questions returned'
-    assert questions.size <= 100, 'Too many questions returned'
+
+    assert_questions_valid(questions)
     questions.each do |question|
       assert question.tags.map(&:name).include?(subscriptions(:tag).qualifier),
              "Tag subscription returned question #{question.id} without specified tag"
     end
   end
 
-  test "user subscription should return only user questions" do
+  test 'user subscription should return only user questions' do
     questions = subscriptions(:user).questions
-    assert_not_nil questions
-    assert questions.size > 0, 'No questions returned'
-    assert questions.size <= 100, 'Too many questions returned'
+
+    assert_questions_valid(questions)
     questions.each do |question|
       assert question.user_id == subscriptions(:user).qualifier.to_i,
              "User subscription returned question #{question.id} not from specified user"
     end
+  end
+
+  test 'interesting subscription should return only questions with score higher than the threshold' do
+    threshold = 0.5
+
+    SiteSetting['InterestingSubscriptionScoreThreshold'] = threshold
+
+    questions = subscriptions(:interesting).questions
+
+    assert_questions_valid(questions)
+    questions.each do |question|
+      assert question.score >= threshold,
+             "Expected question #{question.id} with a score of #{question.score} to be excluded"
+    end
+  end
+
+  test 'category subscription should return only questions from a specific category' do
+    category = categories(:main)
+    questions = subscriptions(:category).questions
+
+    assert_questions_valid(questions)
+    questions.each do |question|
+      assert question.category == category,
+             "Expected quesiton #{question.id} to be from the #{category.name} category," \
+             "actual: #{question.category.name || 'no category'}"
+    end
+  end
+
+  test 'qualified? should correctly determine if a subscription should have a qualifier' do
+    subscriptions.each do |sub|
+      assert_equal sub.qualified?, Subscription::QUALIFIED_TYPES.include?(sub.type)
+    end
+  end
+
+  test 'predicates for each type should correctly determine if the subscription is of type' do
+    Subscription::TYPES.each do |type|
+      other_types = Subscription::TYPES.reject { |t| t == type }
+      subscription = Subscription.new(type: type)
+
+      assert(subscription.send("#{type}?"))
+      assert(other_types.none? { |t| subscription.send("#{t}?") })
+    end
+  end
+
+  test 'qualifier_entity should correctly return entities bound through qualifiers' do
+    class_map = { category: Category, tag: Tag, user: User }
+
+    subscriptions.each do |sub|
+      next unless sub.qualified?
+
+      entity = sub.qualifier_entity
+      assert_not_nil(entity)
+      assert(entity.is_a?(class_map[sub.type.to_sym]))
+    end
+  end
+
+  private
+
+  def assert_questions_valid(questions)
+    assert_not_nil(questions)
+    assert_not(questions.empty?, 'No questions returned')
+    assert(questions.size <= 100, 'Too many questions returned')
   end
 end

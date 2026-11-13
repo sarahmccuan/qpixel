@@ -1,0 +1,47 @@
+<%#
+  Adds a markdown body form textarea.
+  Variables:
+    post          : [ApplicationRecord, Nil] the entity to which this body field belongs (a post, a tag, a user, ...)
+    field_name    : [Symbol] the name of the body field (for the given entity)
+    field_label   : [String] the label for the field
+    min_length    : [Integer, Nil] optional, the minimum allowed length
+    max_length    : [Integer, Nil] optional, the maximum allowed length
+%>
+
+<%
+  # Defaults
+  cur_length = defined?(cur_length) ? cur_length : nil
+  min_length = defined?(min_length) ? min_length : nil
+  max_length = defined?(max_length) ? max_length : nil
+%>
+
+<div class="form-group">
+  <%= f.label field_name, field_label, class: "form-element" %>
+  <% if block_given? %>
+    <span class="form-caption"><%= yield %></span>
+  <% end %>
+  <div class="widget">
+    <% value = {} %>
+    <% classes = 'form-element post-field js-post-field widget--body h-b-0 h-m-0' %>
+    <% if defined? post %>
+      <% key = "saved_post.#{current_user&.id}.#{request.path}" %>
+      <% saved_at_key = "saved_post_at.#{current_user&.id}.#{request.path}" %>
+      <% saved_at = DateTime.parse(RequestContext.redis.get(saved_at_key) || '') rescue Date.new(2000, 1, 1) %>
+      <%
+        # Find the most recent between post-create, post-update, and draft-saved, and use the value corresponding to that.
+        value = [[post&.created_at || Date.new(2000, 1, 1), {}], [post&.updated_at || Date.new(2000, 1, 1), {}],
+                 [saved_at || Date.new(2001, 1, 1), { value: RequestContext.redis.get(key),
+                                                      class: classes + ' js-draft-loaded' }]].max_by do |x|
+          x[0]
+        end[1]
+      %>
+    <% end %>
+    <%= render 'shared/markdown_tools' %>
+    <%= f.text_area field_name, **({ class: classes, rows: 15, placeholder: 'Start typing your post...' }).merge(value), 
+                                data: { character_count: ".js-character-count-post-body" } %>
+    <%= render 'posts/mdhint', cur_length: value[:value]&.length || cur_length, 
+                               min_length: min_length, 
+                               max_length: max_length %>
+  </div>
+  <%= hidden_field_tag "__html", nil, class: 'js-post-html' %>
+</div>

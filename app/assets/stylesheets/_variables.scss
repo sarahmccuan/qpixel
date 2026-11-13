@@ -1,19 +1,68 @@
+@use "sass:map";
+
 // Breakpoints
 $screen-sm: 576px;
 $screen-md: 780px;
 $screen-lg: 992px;
 $screen-xl: 1200px;
 
+$mod-tools-medium-to-large-breakpoint: 768px !default;
+
 // Colors
 $key: #335;
 $muted-text: #666;
 $muted-graphic: #DDD;
-$primary: #00A4EA;
-$secondary: #CD5334;
-$warning: #CC9633;
-$danger: #BA1916;
-$success: #76B041;
-$meta: #FFE59A;
+$primary: #4B68FF;
+$primary-graphic: #2980b9;
+$secondary: #EA7317;
+$warning: #FDD835;
+$danger: #EB5959;
+$success: #2ECC71;
+$info: #58A09A;
+$brand: #4B68FF;
+$brand-comp: #F05137;
+
+
+$data: (
+  #4B68FF,
+  #A23B72,
+  #F18F01,
+  #558C8C,
+  #3B1F2B
+);
+
+:root {
+  --key: #{$key};
+  --muted-text: #{$muted-text};
+  --muted-graphic: #{$muted-graphic};
+  --primary: #{$primary};
+  --primary-graphic: #{$primary-graphic};
+  --secondary: #{$secondary};
+  --warning: #{$warning};
+  --danger: #{$danger};
+  --success: #{$success};
+  --info: #{$info};
+  --brand: #{$brand};
+  --data-0: #{nth($data, 1)};
+  --data-1: #{nth($data, 2)};
+  --data-2: #{nth($data, 3)};
+  --data-3: #{nth($data, 4)};
+  --data-4: #{nth($data, 5)};
+}
 
 $font-stack-plain: 'Roboto', 'Helvetica Neue', 'Helvetica', 'Arial', sans-serif;
 $font-stack-display: 'Red Hat Display', $font-stack-plain;
+$font-stack-code: 'Cascadia Code', 'Roboto Mono', monospace;
+
+$sides: top, right, bottom, left;
+
+$font-sizes: (
+  xxs: 0.8em,
+  xs: 0.85em,
+  sm: 0.9em,
+  md: 1em,
+  lg: 1.2em,
+  xl: 1.5em
+);
+
+$text-aligns: left, center, right, justify;

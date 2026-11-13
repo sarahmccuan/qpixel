@@ -1,0 +1,88 @@
+<div class="modal is-with-backdrop" id="markdown-link-insert">
+  <div class="modal--container">
+    <div class="modal--header">
+      <button type="button" class="button is-close-button modal--header-button" data-modal="#markdown-link-insert">
+        &times;
+      </button>
+      Link
+    </div>
+    <div class="modal--body">
+      <div class="form-group">
+        <label for="markdown-link-name" class="form-element">Link text</label>
+        <input type="text" id="markdown-link-name" class="form-element" />
+      </div>
+      <div class="form-group">
+        <label for="markdown-link-url" class="form-element">Link URL</label>
+        <input type="text" id="markdown-link-url" class="form-element" />
+      </div>
+
+      <button type="button" class="js-markdown-insert-link button is-filled">Insert</button>
+    </div>
+  </div>
+</div>
+
+<div class="markdown-tools widget--header js-markdown-tools">
+  <div class="button-list is-gutterless">
+    <%= md_button action: 'bold', label: 'Bold', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-bold"></i>
+    <% end %>
+    <%= md_button action: 'italic', label: 'Italic', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-italic"></i>
+    <% end %>
+    <%= md_button action: 'code', label: 'Monospace font', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-code"></i>
+    <% end %>
+    <% if SiteSetting['MathJaxEnabled'] %>
+      <%= md_button action: 'mathjax', label: 'MathJax', class: 'is-icon-only' do %>
+        $
+      <% end %>
+    <% end %>
+  </div>
+
+  <div class="button-list is-gutterless">
+    <%= md_button action: 'bullet', label: 'Bullet list', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-list-ul"></i>
+    <% end %>
+    <%= md_button action: 'numbered', label: 'Numbered list', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-list-ol"></i>
+    <% end %>
+  </div>
+
+  <div class="button-list is-gutterless">
+    <%= md_button label: 'Link', class: 'is-icon-only', data_modal: '#markdown-link-insert' do %>
+      <i class="fas fa-fw fa-link"></i>
+    <% end %>
+    <%= md_button action: 'quote', label: 'Block quote', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-quote-left"></i>
+    <% end %>
+    <%= md_button label: 'Insert image', class: 'is-icon-only', data_modal: '#markdown-image-upload' do %>
+      <i class="fas fa-fw fa-images"></i>
+    <% end %>
+    <%= md_button action: 'table', label: 'Insert table', class: 'is-icon-only' do %>
+      <i class="fas fa-fw fa-table"></i>
+    <% end %>
+  </div>
+
+  <div class="button-list is-gutterless">
+    <a href="javascript:void(0)" class="button is-outlined is-muted is-icon-only" data-drop="#markdown-tools"
+       data-drop-self-class-toggle="is-active" aria-label="Tools" title="Other tools" role="button">
+      <i class="fas fa-tools"></i>
+    </a>
+
+    <div class="droppanel" id="markdown-tools">
+      <div class="droppanel--menu has-font-size-base">
+        <%= md_list_item action: 'heading', label: 'Heading' do %>
+          <i class="fas fa-fw fa-heading"></i> Heading
+        <% end %>
+        <%= md_list_item action: 'hr', label: 'Horizontal line' do %>
+          <i class="fas fa-fw fa-level-down-alt"></i> Horizontal line
+        <% end %>
+        <%= md_list_item action: 'spoiler', label: 'Spoiler' do %>
+          <i class="fas fa-fw fa-eye-slash"></i> Spoiler
+        <% end %>
+      </div>
+    </div>
+  </div>
+
+  <%= render 'shared/draft_tools' %>
+</div>

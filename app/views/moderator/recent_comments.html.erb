@@ -1,0 +1,26 @@
+<% content_for :title, 'Recent Comments' %>
+<%= link_to moderator_path, class: 'has-font-size-small' do %>
+  &laquo; Return to moderator tools
+<% end %>
+
+<h1>Recent Comments</h1>
+<p>
+  This is a log of <em>all</em> comments posted recently on this site. This may not be very useful on higher-traffic
+  communities; consider using activity logs on user profiles instead.
+</p>
+
+<%
+  thread_pingables = @comments.map(&:comment_thread).to_set.to_h do |thread|
+    [thread, thread.pingable]
+  end
+%>
+
+<% @comments.each do |comment| %>
+  <%= render 'comments/comment', comment: comment,
+                                 pingable: thread_pingables[comment.comment_thread],
+                                 with_post_link: true %>
+<% end %>
+
+<div class="has-padding-top-4">
+  <%= will_paginate @comments, renderer: BootstrapPagination::Rails %>
+</div>

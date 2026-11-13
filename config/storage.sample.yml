@@ -1,14 +1,27 @@
-test:
+# To use external files (such as image upload), you need a storage.yml file.
+# If you are using only the local disk (such as in a development environment),
+# you can just copy this file. If you are using an S3 bucket, copy this
+# file and then edit the settings.
+
+test: &test
   service: Disk
   root: <%= Rails.root.join('tmp/storage') %>
 
 local:
-  storage: Disk
+  service: Disk
   root: <%= Rails.root.join('storage') %>
 
-s3:
+s3: &s3
   service: S3
   access_key_id: ""
   secret_access_key: ""
   region: us-east-1
   bucket: ""
+
+db_backup:
+  <<: *s3
+  bucket: ""
+  test_data: 'something'
+
+db_backup_test:
+  <<: *test

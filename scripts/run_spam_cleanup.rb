@@ -1,0 +1,2 @@
+CleanUpSpammyUsersJob.perform_now
+PotentialSpamProfilesJob.perform_now

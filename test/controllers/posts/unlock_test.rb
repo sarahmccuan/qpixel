@@ -1,0 +1,50 @@
+require 'test_helper'
+
+class PostsControllerTest < ActionController::TestCase
+  include Devise::Test::ControllerHelpers
+
+  test 'can unlock post' do
+    sign_in users(:deleter)
+    posts(:locked).update(locked_until: 2.days.from_now)
+    post :unlock, params: { id: posts(:locked).id, format: :json }
+
+    assert_response(:success)
+    assert_not_nil assigns(:post)
+    assert_valid_json_response
+    assert_equal 'success', JSON.parse(response.body)['status']
+  end
+
+  test 'unlock requires authentication' do
+    post :unlock, params: { id: posts(:locked).id }
+    assert_redirected_to_sign_in
+  end
+
+  test 'unprivileged user cannot unlock' do
+    sign_in users(:standard_user)
+    post :unlock, params: { id: posts(:locked).id, format: :json }
+
+    assert_response(:not_found)
+    assert_valid_json_response
+    assert_equal 'failed', JSON.parse(response.body)['status']
+  end
+
+  test 'cannot unlock unlocked post' do
+    sign_in users(:deleter)
+    post :unlock, params: { id: posts(:question_one).id, format: :json }
+
+    assert_response(:not_found)
+    assert_valid_json_response
+    assert_equal 'failed', JSON.parse(response.body)['status']
+  end
+
+  test 'cannot unlock post locked by moderator' do
+    sign_in users(:deleter)
+    posts(:locked_mod).update(locked_until: 2.days.from_now)
+    post :unlock, params: { id: posts(:locked_mod).id, format: :json }
+
+    assert_response(:not_found)
+    assert_valid_json_response
+    assert_equal 'failed', JSON.parse(response.body)['status']
+    assert_equal ['locked_by_mod'], JSON.parse(response.body)['errors']
+  end
+end

@@ -8,7 +8,23 @@ class RequestContext
       Thread.current[:context] = {}
     end
 
-    %i(user community).each do |field|
+    def redis
+      if $redis
+        $redis
+      else
+        processed = ERB.new(File.read(Rails.root.join('config', 'database.yml'))).result(binding)
+        $redis ||= Redis.new(
+          YAML.safe_load(processed,
+                         permitted_classes: [],
+                         permitted_symbols: [],
+                         aliases: true)["redis_#{Rails.env}"].deep_symbolize_keys
+        )
+      end
+    rescue NoMethodError
+      raise LoadError, "You don't appear to have any Redis config in config/database.yml"
+    end
+
+    %i[user community].each do |field|
       define_method "#{field}=" do |value|
         fetch[field] = value
       end

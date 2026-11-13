@@ -1,8 +1,20 @@
-<h1>Flag History</h1>
-<p>
-  Below is a list of all the flags you have cast and the outcome of each of them. Moderators handling your flags may also
-  have left you feedback.
-</p>
+<%#
+   "User's flag history view
+
+    Instance variables:
+      @flags    : ActiveRecord::Relation<Flag> collection of user's flags to display
+      @statuses : Hash{String => Integer} flag counts grouped by status
+      @user     : User to display flag history for
+"%>
+
+<%
+  is_same_user = @user.same_as?(current_user)
+  title_key = "history_#{is_same_user ? 'self' : 'other'}_prefix"
+  description_key = "history_#{is_same_user ? 'self' : 'other'}"
+%>
+
+<h1><%= t("flags.headers.#{title_key}") %> <%= user_link(@user) unless is_same_user %></h1>
+<p><%= t("flags.descriptions.#{description_key}") %></p>
 
 <h3>
   <%= pluralize(@flags.count, 'flag') %>
@@ -10,23 +22,7 @@
 <h4><%= @statuses.map { |s, c| "#{c} #{s.present? ? s : 'pending'}" }.join(', ') %></h4>
 
 <% @flags.each do |flag| %>
-  <div class="widget">
-    <div class="item-list">
-      <%= render 'posts/list', post: flag.post %>
-    </div>
-    <div class="widget--body">
-      <p>
-        <% status_colors = { helpful: 'is-green', declined: 'is-red', pending: 'is-muted' } %>
-        <span class="badge is-tag <%= status_colors[(flag.status || 'pending').to_sym] %> is-filled">
-          <%= flag.status || 'pending' %>
-        </span>
-        <%= flag.reason %>
-        <% if flag.message.present? %>
-          &mdash; response: <em><%= flag.message %></em>
-        <% end %>
-      </p>
-    </div>
-  </div>
+  <%= render 'handled', flag: flag %>
 <% end %>
 
 <%= will_paginate @flags, renderer: BootstrapPagination::Rails %>

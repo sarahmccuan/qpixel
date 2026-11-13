@@ -1,0 +1,11 @@
+deleter_normal:
+  user: deleter
+  comment_thread: normal
+
+standard_author_normal:
+  user: standard_user
+  comment_thread: normal
+
+merge_source_normal:
+  user: merge_source
+  comment_thread: normal

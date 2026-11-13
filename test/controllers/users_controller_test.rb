@@ -1,214 +1,405 @@
 require 'test_helper'
+require_relative 'concerns/users/user_test_helpers'
 
 class UsersControllerTest < ActionController::TestCase
   include Devise::Test::ControllerHelpers
+  include ApplicationHelper
+  include UserTestHelpers
 
-  test "should get index" do
-    get :index
-    assert_not_nil assigns(:users)
-    assert_response(200)
+  test 'should get index' do
+    [:html, :json].each do |format|
+      get :index, params: { format: format }
+
+      assert_response(:success)
+
+      case format
+      when :html
+        assert_not_nil(assigns(:users))
+      when :json
+        assert_valid_json_response
+      end
+    end
   end
 
   test 'should not include users not in current community' do
     @other_user = create_other_user
     get :index
     assert_not_includes assigns(:users), @other_user
-    assert_response(200)
+    assert_response(:success)
   end
 
-  test "should get show user page" do
+  test 'should get show user page' do
     sign_in users(:standard_user)
     get :show, params: { id: users(:standard_user).id }
     assert_not_nil assigns(:user)
-    assert_response(200)
+    assert_response(:success)
   end
 
-  test "should not show user page for non-community users" do
+  test 'should get show user unauthenticated' do
+    get :show, params: { id: users(:standard_user).id }
+    assert_not_nil assigns(:user)
+    assert_response(:success)
+  end
+
+  test 'should not show user page for non-community users' do
     @other_user = create_other_user
     sign_in users(:standard_user)
     get :show, params: { id: @other_user.id }
-    assert_response(404)
+    assert_response(:not_found)
   end
 
-  test "should get mod tools page" do
-    sign_in users(:moderator)
-    get :mod, params: { id: users(:standard_user).id }
-    assert_not_nil assigns(:user)
-    assert_response(200)
+  test 'should correctly show user post count' do
+    std = users(:standard_user)
+    post_count = Post.all.by(std).count
+    limit = post_count - 1
+
+    assert post_count.positive? && limit.positive?
+
+    sign_in std
+    get :show, params: { id: std.id, limit: limit }
+
+    assert_equal assigns(:posts)&.count, limit
+    assert_equal assigns(:total_post_count), post_count
   end
 
-  test "should require authentication to access mod tools" do
+  test 'should require authentication to soft-delete user' do
     sign_out :user
-    get :mod, params: { id: users(:standard_user).id }
+
+    try_soft_delete_user('user', users(:standard_user))
+
+    assert_response(:not_found)
     assert_nil assigns(:user)
-    assert_response(404)
   end
 
-  test "should require moderator status to access mod tools" do
+  test 'should require admin status to soft-delete user' do
     sign_in users(:standard_user)
-    get :mod, params: { id: users(:standard_user).id }
+
+    try_soft_delete_user('user', users(:standard_user))
+
+    assert_response(:not_found)
     assert_nil assigns(:user)
-    assert_response(404)
   end
 
-  test "should destroy user" do
-    sign_in users(:moderator)
-    delete :destroy, params: { id: users(:standard_user).id }
-    assert_not_nil assigns(:user)
-    assert_equal 'success', JSON.parse(response.body)['status']
-    assert_response(200)
-  end
-
-  test "should require authentication to destroy user" do
-    sign_out :user
-    delete :destroy, params: { id: users(:standard_user).id }
-    assert_nil assigns(:user)
-    assert_response(404)
-  end
-
-  test "should require moderator status to destroy user" do
-    sign_in users(:standard_user)
-    delete :destroy, params: { id: users(:standard_user).id }
-    assert_nil assigns(:user)
-    assert_response(404)
-  end
-
-  test "soft deleting a user should not lose content" do
-    sign_in users(:admin)
-    assert_nothing_raised do
-      needs_transfer = ApplicationRecord.connection.tables.map { |t| [t, ApplicationRecord.connection.columns(t).map(&:name)] }
-                           .to_h.select { |_, cs| cs.include?('user_id') }
-                           .map { |k, _| k.singularize.classify.constantize rescue nil }.compact
-      pre_counts = needs_transfer.map { |model| [model, model.count] }.to_h
-
-      id = users(:standard_user).id
-      delete :soft_delete, params: { id: id, transfer: users(:editor).id }
-
-      assert_response 200
-      assert_not_nil assigns(:user)
-      assert_equal 'success', JSON.parse(response.body)['status']
-
-      # Make sure the record has actually been deleted.
-      assert_raises ActiveRecord::RecordNotFound do
-        User.find(id)
-      end
-
-      pre_counts.each do |model, count|
-        # No content should have been lost to deleting the user, just re-assigned.
-        assert_equal count, model.count
-      end
-    end
-  end
-
-  test "should require authentication to soft-delete user" do
-    sign_out :user
-    delete :soft_delete, params: { id: users(:standard_user).id, transfer: users(:editor).id }
-    assert_nil assigns(:user)
-    assert_response(404)
-  end
-
-  test "should require admin status to soft-delete user" do
-    sign_in users(:standard_user)
-    delete :soft_delete, params: { id: users(:standard_user).id, transfer: users(:editor).id }
-    assert_nil assigns(:user)
-    assert_response(404)
-  end
-
-  test "should require authentication to get edit profile page" do
+  test 'should require authentication to get edit profile page' do
     get :edit_profile
-    assert_response 302
+    assert_response(:found)
   end
 
-  test "should get edit profile page" do
+  test 'should get edit profile page' do
     sign_in users(:standard_user)
     get :edit_profile
-    assert_response 200
+    assert_response(:success)
   end
 
-  test "should update profile text" do
+  test 'should redirect & show success notice on profile update' do
     sign_in users(:standard_user)
-    patch :update_profile, params: { user: { profile_markdown: 'ABCDEF GHIJKL', website: 'https://example.com/user',
-                                             twitter: '@standard_user' } }
-    assert_response 302
+    patch :update_profile, params: { user: { username: 'std' } }
+
+    assert_response(:found)
     assert_not_nil flash[:success]
     assert_not_nil assigns(:user)
     assert_equal users(:standard_user).id, assigns(:user).id
-    assert_not_nil assigns(:user).profile
-    assert_equal 'standard_user', assigns(:user).twitter
   end
 
-  test "should get full questions list for a user" do
-    get :posts, params: { id: users(:standard_user).id, type: 'questions' }
-    assert_response 200
-    assert_not_nil assigns(:user)
-    assert_not_nil assigns(:posts)
-  end
+  test 'should correctly update profile text' do
+    sign_in users(:standard_user)
 
-  test "should get full questions list in JSON format" do
-    get :posts, params: { id: users(:standard_user).id, type: 'questions', format: 'json' }
-    assert_response 200
-    assert_not_nil assigns(:user)
-    assert_not_nil assigns(:posts)
-    assert_nothing_raised do
-      JSON.parse(response.body)
+    ['Non-empty profile text', '', 'Empty and whitespace-only changes should be separated', '    '].each do |text|
+      patch :update_profile, params: {
+        user: { profile_markdown: text }
+      }
+
+      @user = assigns(:user)
+      assert_not_nil @user
+
+      assert_equal @user.profile.strip, text.present? ? "<p>#{text}</p>" : ''
     end
   end
 
-  test "should get full answers list for a user" do
-    get :posts, params: { id: users(:standard_user).id, type: 'answers' }
-    assert_response 200
+  test 'should update websites' do
+    sign_in users(:standard_user)
+    patch :update_profile, params: {
+      user: { user_websites_attributes: {
+        '0': { label: 'web', url: 'example.com' }
+      } }
+    }
+    assert_not_nil assigns(:user).user_websites
+    assert_equal 'web', assigns(:user).user_websites.first.label
+    assert_equal 'example.com', assigns(:user).user_websites.first.url
+  end
+
+  test 'should update user discord link' do
+    sign_in users(:standard_user)
+    patch :update_profile, params: {
+      user: { discord: 'example_user#1234' }
+    }
+    assert_equal 'example_user#1234', assigns(:user).discord
+  end
+
+  test 'should get full posts list for a user' do
+    get :posts, params: { id: users(:standard_user).id }
+
+    assert_response(:success)
     assert_not_nil assigns(:user)
     assert_not_nil assigns(:posts)
   end
 
-  test "should get full answers list in JSON format" do
-    get :posts, params: { id: users(:standard_user).id, type: 'answers', format: 'json' }
-    assert_response 200
+  test 'should get full posts list in JSON format' do
+    get :posts, params: { id: users(:standard_user).id, format: 'json' }
+
+    assert_response(:success)
     assert_not_nil assigns(:user)
     assert_not_nil assigns(:posts)
-    assert_nothing_raised do
-      JSON.parse(response.body)
-    end
+    assert_valid_json_response
   end
 
-  test "should reject invalid post type for full list" do
-    get :posts, params: { id: users(:standard_user).id, type: 'invalid' }
-    assert_response 400
-    assert_not_nil assigns(:user)
-    assert_nil assigns(:posts)
-  end
+  test 'should sort full posts lists correctly' do
+    get :posts, params: { id: users(:standard_user).id, format: :json, sort: 'age' }
 
-  test "should reject invalid post type for full list and return JSON" do
-    get :posts, params: { id: users(:standard_user).id, type: 'invalid', format: 'json' }
-    assert_response 400
-    assert_not_nil assigns(:user)
-    assert_nil assigns(:posts)
-    assert_nothing_raised do
-      JSON.parse(response.body)
-    end
-    assert_equal 'invalid', JSON.parse(response.body)['status']
-  end
-
-  test "should sort full posts lists correctly" do
-    get :posts, params: { id: users(:standard_user).id, type: 'questions', format: :json, sort: 'age' }
-    assert_response 200
+    assert_response(:success)
     assert_not_nil assigns(:user)
     assert_not_nil assigns(:posts)
-    assert_nothing_raised do
-      JSON.parse(response.body)
-    end
+    assert_valid_json_response
     assigns(:posts).each_with_index do |post, idx|
-      next if idx == 0
+      next if idx.zero?
+
       previous = assigns(:posts)[idx - 1]
       assert post.created_at <= previous.created_at,
              "@posts was expected in created_at DESC order, but got #{post.created_at.iso8601} before #{previous.created_at.iso8601}"
     end
   end
 
-  def create_other_user
-    other_community = Community.create(host: 'other.qpixel.com', name: 'Other')
-    other_user = User.create!(email: 'other@example.com', password: 'abcdefghijklmnopqrstuvwxyz', username: 'other_user')
-    other_user.community_users.create!(community: other_community)
-    other_user
+  test 'should require authentication to get mobile login' do
+    get :qr_login_code
+    assert_redirected_to_sign_in
+  end
+
+  test 'should allow signed in users to get mobile login' do
+    sign_in users(:standard_user)
+    get :qr_login_code
+
+    assert_response(:success)
+    assert_not_nil assigns(:token)
+    assert_not_nil assigns(:qr_code)
+    assert_equal 1, User.where(login_token: assigns(:token)).count
+    assert current_user.login_token_expires_at <= 5.minutes.from_now,
+           'Login token expiry too long'
+  end
+
+  test 'should sign in user in response to valid mobile login request' do
+    get :do_qr_login, params: { token: 'abcdefghijklmnopqrstuvwxyz01' }
+
+    assert_response(:found)
+    assert_equal 'You are now signed in.', flash[:success]
+    assert_equal users(:closer).id, current_user.id
+    assert_nil current_user.login_token
+    assert_nil current_user.login_token_expires_at
+  end
+
+  test 'should refuse to sign in user using expired token' do
+    get :do_qr_login, params: { token: 'abcdefghijklmnopqrstuvwxyz02' }
+
+    assert_response(:not_found)
+    assert_not_nil flash[:danger]
+    assert_equal true, flash[:danger].start_with?("That login link isn't valid.")
+    assert_nil current_user&.id
+  end
+
+  test 'should deny anonymous users access to annotations' do
+    get :annotations, params: { id: users(:standard_user).id }
+    assert_response(:not_found)
+  end
+
+  test 'should deny non-mods access to annotations' do
+    sign_in users(:standard_user)
+    get :annotations, params: { id: users(:standard_user).id }
+    assert_response(:not_found)
+  end
+
+  test 'should deny access to deleted account' do
+    get :show, params: { id: users(:deleted_account).id }
+    assert_response(:not_found)
+  end
+
+  test 'should deny access to deleted profile' do
+    get :show, params: { id: users(:deleted_profile).id }
+    assert_response(:not_found)
+    assert_not_nil assigns(:user)
+  end
+
+  test 'my_activity should redirect to user activity or to sign in for anonymous access' do
+    users.each do |user|
+      sign_in user
+      get :my_activity
+
+      if user.deleted? || user.community_user.deleted?
+        assert_redirected_to_sign_in
+      else
+        assert_redirected_to user_activity_path(user), "user #{user.name} is incorrectly redirected"
+      end
+
+      sign_out :user
+    end
+  end
+
+  test 'my_network should redirect to user network profile or to sign in for anonymous access' do
+    users.each do |user|
+      sign_in user
+      get :my_network
+
+      if user.deleted? || user.community_user.deleted?
+        assert_redirected_to_sign_in
+      else
+        assert_redirected_to network_path(user), "user #{user.name} is incorrectly redirected"
+      end
+
+      sign_out :user
+    end
+  end
+
+  test 'my_vote_summary should redirect to user summary or to sign in for anonymous access' do
+    users.each do |user|
+      sign_in user
+      get :my_vote_summary
+
+      if user.deleted? || user.community_user.deleted?
+        assert_redirected_to_sign_in
+      else
+        assert_redirected_to vote_summary_path(user), "user #{user.name} is incorrectly redirected"
+      end
+
+      sign_out :user
+    end
+  end
+
+  test 'vote summary rendered for all users, signed in or out, own or others' do
+    sign_out :user
+    get :vote_summary, params: { id: users(:standard_user).id }
+    assert_response(:success)
+
+    get :vote_summary, params: { id: users(:closer).id }
+    assert_response(:success)
+
+    sign_in users(:editor)
+
+    get :vote_summary, params: { id: users(:editor).id }
+    assert_response(:success)
+
+    get :vote_summary, params: { id: users(:deleter).id }
+    assert_response(:success)
+  end
+
+  test 'me should redirect to currently signed in user' do
+    std = users(:standard_user)
+
+    sign_in std
+    get :me, format: 'html'
+    assert_redirected_to user_path(std)
+  end
+
+  test "me should return currently signed in user's data for JSON format" do
+    mod = users(:moderator)
+
+    sign_in mod
+    get :me, format: 'json'
+    assert_response(:success)
+
+    data = JSON.parse(response.body)
+
+    assert_equal data['id'], mod.id
+    assert_equal data['username'], mod.username
+  end
+
+  test 'activity should correctly apply single-type items filter' do
+    std = users(:standard_user)
+
+    sign_in std
+
+    model_map = {
+      'posts' => Post,
+      'comments' => Comment,
+      'edits' => SuggestedEdit
+    }
+
+    model_map.each do |filter, model|
+      get :activity, params: { id: std.id, filter: filter }
+      assert_response(:success)
+      items = assigns(:items)
+
+      assert(items.all?(model))
+    end
+  end
+
+  test 'default activity filter should include items of all types' do
+    std = users(:standard_user)
+
+    sign_in std
+
+    get :activity, params: { id: std.id }
+
+    assert_response(:success)
+    items = assigns(:items)
+
+    edit_type = PostHistoryType.find_by(name: 'post_edited')
+
+    [Post, Comment, SuggestedEdit, Flag, PostHistory, ModWarning].each do |model|
+      assert(items.any? do |item|
+               is_valid = if item.instance_of?(model)
+                            case model
+                            when Post
+                              item.deleted == false
+                            when Comment
+                              item.comment_thread.deleted == false &&
+                              item.deleted == false &&
+                              item.post.deleted == false
+                            when PostHistory
+                              item.post_history_type == edit_type
+                            when SuggestedEdit
+                              item.post.deleted == false
+                            end
+                          else
+                            true
+                          end
+
+               is_valid && item.user.same_as?(std)
+             end)
+    end
+  end
+
+  test 'set_preference should correclty save valid preferences' do
+    sign_in users(:standard_user)
+
+    pref_key = 'default_license'
+    license = licenses(:cc_by_sa)
+
+    [nil, communities(:sample)].each do |community|
+      try_save_preference(pref_key, license, community: community)
+
+      assert_response(:success)
+      assert_valid_json_response
+
+      parsed_body = JSON.parse(response.body)
+      assert_equal 'success', parsed_body['status']
+      assert_not_nil parsed_body['preferences']
+
+      comm_key = community.present? ? 'community' : 'global'
+      assert_not_nil parsed_body['preferences'][comm_key]
+      assert_equal license.id.to_s, parsed_body['preferences'][comm_key][pref_key]
+    end
+  end
+
+  test 'set_preference should correctly handle invalid preferences' do
+    sign_in users(:standard_user)
+
+    [nil, communities(:sample)].each do |community|
+      post :set_preference, params: { community: community, format: :json }
+
+      assert_response(:bad_request)
+      assert_valid_json_response
+
+      parsed_body = JSON.parse(response.body)
+      assert_equal 'failed', parsed_body['status']
+      assert_not_nil parsed_body['message']
+    end
   end
 end

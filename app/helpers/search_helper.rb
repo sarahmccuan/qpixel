@@ -1,82 +1,260 @@
 module SearchHelper
+  include SearchQualifierHelper
+
+  SOURCE_TYPES = [:any, :native, :imported].freeze
+
+  ##
+  # Search & sort a default posts list based on parameters in the current request.
+  #
+  # Search uses MySQL FTS in boolean mode which is what provides advanced search syntax (excluding qualifiers)
+  # see {MySQL manual 14.9.2}[https://dev.mysql.com/doc/refman/8.4/en/fulltext-boolean.html].
+  #
+  # @param user [User] user for search context
+  # @param params [ActionController::Parameters] search parameters
+  # @return [[ActiveRecord::Relation<Post>, Array<Hash{Symbol => Object}>]]
+  def search_posts(user, params)
+    posts = Post.accessible_to(user)
+    qualifiers = params_to_qualifiers(params)
+    search_string = params[:search]
+
+    # Filter based on search string qualifiers
+    if search_string.present?
+      search_data = parse_search(search_string)
+      qualifiers += parse_qualifier_strings(search_data[:qualifiers])
+      search_string = search_data[:search]
+    end
+
+    posts = qualifiers_to_sql(qualifiers, posts, user)
+    posts = posts.paginate(page: params[:page], per_page: 25)
+
+    posts = if search_string.present?
+              posts.search(search_data[:search]).user_sort({ term: params[:sort], default: :search_score },
+                                                           relevance: :search_score,
+                                                           score: :score, age: :created_at,
+                                                           activity: :updated_at)
+            else
+              posts.user_sort({ term: params[:sort], default: :score },
+                              score: :score, age: :created_at, activity: :updated_at)
+            end
+
+    [posts, qualifiers]
+  end
+
+  ##
+  # Converts a Filter record into a form parseable by the search function.
+  # @param filter [Filter]
+  # @return [Array<Hash{Symbol => Object}>] An array of hashes, each containing at least a +param+ key and other
+  #   relevant information.
+  def filter_to_qualifiers(filter)
+    qualifiers = []
+    qualifiers.append({ param: :score, operator: '>=', value: filter.min_score }) unless filter.min_score.nil?
+    qualifiers.append({ param: :score, operator: '<=', value: filter.max_score }) unless filter.max_score.nil?
+    qualifiers.append({ param: :answers, operator: '>=', value: filter.min_answers }) unless filter.min_answers.nil?
+    qualifiers.append({ param: :answers, operator: '<=', value: filter.max_answers }) unless filter.max_answers.nil?
+    qualifiers.append({ param: :include_tags, tag_ids: filter.include_tags }) unless filter.include_tags.nil?
+    qualifiers.append({ param: :exclude_tags, tag_ids: filter.exclude_tags }) unless filter.exclude_tags.nil?
+    qualifiers.append({ param: :status, value: filter.status }) unless filter.status.nil?
+    qualifiers.append({ param: :source, value: filter.source }) unless filter.source.nil?
+    qualifiers
+  end
+
+  ##
+  # Provides a filter-like object containing keys for each of the filter parameters.
+  # @return [Hash{Symbol => #to_s}]
+  def active_filter
+    {
+      default: nil,
+      name: params[:predefined_filter],
+      min_score: params[:min_score],
+      max_score: params[:max_score],
+      min_answers: params[:min_answers],
+      max_answers: params[:max_answers],
+      include_tags: params[:include_tags],
+      exclude_tags: params[:exclude_tags],
+      status: params[:status],
+      source: params[:source]
+    }
+  end
+
+  ##
+  # Retrieves parameters from +params+, validates their values, and adds them to a qualifiers hash.
+  # @param params [ActionController::Parameters] params to convert to qualifiers
+  # @return [Array<Hash{Symbol => Object}>]
+  def params_to_qualifiers(params)
+    valid_value = {
+      date: /^[\d.]+(?:s|m|h|d|w|mo|y)?$/,
+      status: /any|open|closed/,
+      numeric: /^[\d.]+$/,
+      integer: /^\d+$/
+    }
+
+    filter_qualifiers = []
+
+    if params[:min_score]&.match?(valid_value[:numeric])
+      filter_qualifiers.append({ param: :score, operator: '>=', value: params[:min_score].to_f })
+    end
+
+    if params[:max_score]&.match?(valid_value[:numeric])
+      filter_qualifiers.append({ param: :score, operator: '<=', value: params[:max_score].to_f })
+    end
+
+    if params[:min_answers]&.match?(valid_value[:numeric])
+      filter_qualifiers.append({ param: :answers, operator: '>=', value: params[:min_answers].to_i })
+    end
+
+    if params[:max_answers]&.match?(valid_value[:numeric])
+      filter_qualifiers.append({ param: :answers, operator: '<=', value: params[:max_answers].to_i })
+    end
+
+    if params[:status]&.match?(valid_value[:status])
+      filter_qualifiers.append({ param: :status, value: params[:status] })
+    end
+
+    if valid_source_type?(params[:source])
+      filter_qualifiers.append({ param: :source, value: params[:source].to_sym })
+    end
+
+    if valid_tags_list?(params[:include_tags])
+      filter_qualifiers.append({ param: :include_tags, tag_ids: params[:include_tags] })
+    end
+
+    if valid_tags_list?(params[:exclude_tags])
+      filter_qualifiers.append({ param: :exclude_tags, tag_ids: params[:exclude_tags] })
+    end
+
+    filter_qualifiers
+  end
+
+  ##
+  # Parses a raw search string and returns the base search term and qualifier strings separately.
+  # @return [Hash{Symbol => String}] A hash containing +:qualifiers+ and +:search+ keys.
   def parse_search(raw_search)
-    qualifiers_regex = /(\w+(?<!\\):[^ ]+)/
+    qualifiers_regex = /([\w\-_]+(?<!\\):[^ ]+)/
     qualifiers = raw_search.scan(qualifiers_regex).flatten
     search = raw_search
     qualifiers.each do |q|
       search = search.gsub(q, '')
     end
-    search = search.gsub(/\\:/, ':').strip
+    search = search.gsub('\\:', ':').strip
     { qualifiers: qualifiers, search: search }
   end
 
-  def qualifiers_to_sql(qualifiers)
-    valid_value = {
-      date: /^[<>=]{0,2}\d+(?:s|m|h|d|w|mo|y)?$/,
-      numeric: /^[<>=]{0,2}\d+$/
-    }
+  ##
+  # Parses a full qualifier string into an array of qualifier objects.
+  # @param qualifiers [Array<String>] Qualifier strings as returned by {#parse_search}.
+  # @return [Array<Hash{Symbol => Object}>]
+  def parse_qualifier_strings(qualifiers)
+    qualifiers.map do |qualifier|
+      parameter, value = qualifier.split(':')
 
-    clauses = qualifiers.map do |qualifier|
-      splat = qualifier.split ':'
-      parameter = splat[0]
-      value = splat[1]
+      parsed = case parameter
+               when 'score'
+                 parse_score_qualifier(value)
+               when 'created'
+                 parse_created_qualifier(value)
+               when 'user'
+                 parse_user_qualifier(value)
+               when 'upvotes'
+                 parse_upvotes_qualifier(value)
+               when 'downvotes'
+                 parse_downvotes_qualifier(value)
+               when 'votes'
+                 parse_votes_qualifier(value)
+               when 'tag'
+                 parse_include_tag_qualifier(value)
+               when '-tag'
+                 parse_exclude_tag_qualifier(value)
+               when 'category'
+                 parse_category_qualifier(value)
+               when 'post_type'
+                 parse_post_type_qualifier(value)
+               when 'answers'
+                 parse_answers_qualifier(value)
+               when 'status'
+                 parse_status_qualifier(value)
+               when 'source'
+                 parse_source_qualifier(value)
+               end
 
-      case parameter
-      when 'score'
-        next unless value =~ valid_value[:numeric]
-        operator, val = numeric_value_sql value
-        ["score #{operator.present? ? operator : '='} ?", val.to_i]
-      when 'created'
-        next unless value =~ valid_value[:date]
-        operator, val, timeframe = date_value_sql value
-        ["created_at #{operator.present? ? operator : '='} DATE_SUB(CURRENT_TIMESTAMP, INTERVAL ? #{timeframe})", val.to_i]
-      when 'user'
-        next unless value =~ valid_value[:numeric]
-        operator, val = numeric_value_sql value
-        ["user_id #{operator.present? ? operator : '='} ?", val.to_i]
-      else
-        nil
-      end
+      parsed
     end.compact
-
-    sql = clauses.map do |clause|
-      ActiveRecord::Base.sanitize_sql clause
-    end.join(' AND ')
-
-    Arel.sql(sql)
+    # Consider telling the user which filters were invalid
   end
 
-  def numeric_value_sql(value)
-    operator = ''
-    while ['<', '>', '='].include? value[0]
-      operator = operator + value[0]
-      value = value[1..-1]
+  ##
+  # Parses a qualifiers hash and applies it to an ActiveRecord query.
+  # @param qualifiers [Array<Hash{Symbol => Object}>] A qualifiers hash, as returned by other methods in this module.
+  # @param query [ActiveRecord::Relation] An ActiveRecord query to which to add conditions based on the qualifiers.
+  # @return [ActiveRecord::Relation]
+  def qualifiers_to_sql(qualifiers, query, user)
+    categories = Category.accessible_to(user)
+    query = query.where(category_id: categories)
+
+    qualifiers.each do |qualifier| # rubocop:disable Metrics/BlockLength
+      case qualifier[:param]
+      when :score
+        query = query.where("score #{qualifier[:operator]} ?", qualifier[:value])
+      when :created
+        query = query.where("created_at #{qualifier[:operator]} DATE_SUB(CURRENT_TIMESTAMP, " \
+                            "INTERVAL ? #{qualifier[:timeframe]})",
+                            qualifier[:value])
+      when :user
+        query = query.where("user_id #{qualifier[:operator]} ?", qualifier[:user_id])
+      when :upvotes
+        query = query.where("upvote_count #{qualifier[:operator]} ?", qualifier[:value])
+      when :downvotes
+        query = query.where("downvote_count #{qualifier[:operator]} ?", qualifier[:value])
+      when :net_votes
+        query = query.where("(upvote_count - downvote_count) #{qualifier[:operator]} ?", qualifier[:value])
+      when :include_tag
+        query = query.where(posts: { id: PostsTag.where(tag_id: qualifier[:tag_id]).select(:post_id) })
+      when :include_tags
+        qualifier[:tag_ids].each do |id|
+          query = query.where(id: PostsTag.where(tag_id: id).select(:post_id))
+        end
+      when :exclude_tag
+        query = query.where.not(posts: { id: PostsTag.where(tag_id: qualifier[:tag_id]).select(:post_id) })
+      when :exclude_tags
+        query = query.where.not(id: PostsTag.where(tag_id: qualifier[:tag_ids]).select(:post_id))
+      when :category
+        query = query.where("category_id #{qualifier[:operator]} ?", qualifier[:category_id])
+      when :post_type
+        query = query.where("post_type_id #{qualifier[:operator]} ?", qualifier[:post_type_id])
+      when :answers
+        post_types_with_answers = PostType.where(has_answers: true)
+        query = query.where("answer_count #{qualifier[:operator]} ?", qualifier[:value])
+                     .where(post_type_id: post_types_with_answers)
+      when :status
+        case qualifier[:value]
+        when 'open'
+          query = query.where(closed: false)
+        when 'closed'
+          query = query.where(closed: true)
+        end
+      when :source
+        case qualifier[:value]
+        when :native
+          query = query.where(att_source: nil)
+        when :imported
+          query = query.where.not(att_source: nil)
+        end
+      end
     end
 
-    # whatever's left after stripping operator is the number
-    # validated by regex in qualifiers_to_sql
-    [operator, value]
+    query
   end
 
-  def date_value_sql(value)
-    operator = ''
+  # Is a given param a valid list of tags?
+  # @param param [String, Array<String>, nil] parameter to check
+  # @return [Boolean] check result
+  def valid_tags_list?(param)
+    param.is_a?(Array) && param&.all? { |id| id.match?(/^\d+$/) }
+  end
 
-    while ['<', '>', '='].include? value[0]
-      operator = operator + value[0]
-      value = value[1..-1]
-    end
-
-    # working with dates: <1y ('less than one year ago') is SQL: > 1y ago
-    operator = { '<' => '>', '>' => '<', '<=' => '>=', '>=' => '<=' }[operator] || ''
-
-    val = ''
-    while value[0] =~ /[[:digit:]]/
-      val = val + value[0]
-      value = value[1..-1]
-    end
-
-    timeframe = { s: 'SECOND', m: 'MINUTE', h: 'HOUR', d: 'DAY', w: 'WEEK', mo: 'MONTH', y: 'YEAR' }[value.to_sym] || 'MONTH'
-
-    [operator, val, timeframe]
+  # Is a given param a valid source type?
+  # @param param [String, Symbol, nil] parameter to check
+  # @return [Boolean] check result
+  def valid_source_type?(param)
+    SOURCE_TYPES.include?(param&.to_sym)
   end
 end
